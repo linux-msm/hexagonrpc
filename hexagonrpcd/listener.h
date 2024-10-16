@@ -29,7 +29,7 @@
 #include "iobuffer.h"
 
 struct fastrpc_function_impl {
-	const struct fastrpc_function_def_interp2 *def;
+	const struct hrpc_method_def_interp3 *def;
 	uint32_t (*impl)(void *data,
 			 const struct fastrpc_io_buffer *inbufs,
 			 struct fastrpc_io_buffer *outbufs);

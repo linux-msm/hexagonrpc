@@ -23,6 +23,7 @@
 #define FASTRPC_H
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -41,6 +42,8 @@
 #define REMOTE_SCALARS_INBUFS(sc) (((sc) >> 16) & 0xff)
 #define REMOTE_SCALARS_OUTBUFS(sc) (((sc) >> 8) & 0xff)
 
+#define HEXAGONRPC_DELIMITER 0xFFFFFFFF
+
 struct fastrpc_context {
 	int fd;
 	uint32_t handle;
@@ -52,6 +55,13 @@ struct fastrpc_function_def_interp2 {
 	uint8_t in_bufs;
 	uint8_t out_nums;
 	uint8_t out_bufs;
+};
+
+struct hrpc_method_def_interp3 {
+	uint32_t msg_id;
+	bool has_prim_out;
+	size_t n_args;
+	const uint32_t *args;
 };
 
 struct fastrpc_context *fastrpc_create_context(int fd, uint32_t handle);
@@ -69,5 +79,15 @@ int fastrpc2(const struct fastrpc_function_def_interp2 *def,
 	     int fd, uint32_t handle, ...);
 int fastrpc(const struct fastrpc_function_def_interp2 *def,
 	    const struct fastrpc_context *ctx, ...);
+
+int vhexagonrpc2(const struct hrpc_method_def_interp3 *def,
+		 int fd, uint32_t handle, va_list list);
+int vhexagonrpc(const struct hrpc_method_def_interp3 *def,
+		const struct fastrpc_context *ctx, va_list list);
+int hexagonrpc2(const struct hrpc_method_def_interp3 *def,
+		int fd, uint32_t handle, ...);
+int hexagonrpc(const struct hrpc_method_def_interp3 *def,
+	       const struct fastrpc_context *ctx, ...);
+
 
 #endif
