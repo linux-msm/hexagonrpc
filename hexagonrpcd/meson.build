@@ -1,5 +1,4 @@
 executable('hexagonrpcd',
-  'aee_error.c',
   'apps_mem.c',
   'apps_std.c',
   'interfaces.c',
