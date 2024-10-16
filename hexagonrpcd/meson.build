@@ -17,3 +17,4 @@ executable('hexagonrpcd',
   link_with : libhexagonrpc,
   install_dir : get_option('bindir'),
 )
+install_man('hexagonrpcd.1')
