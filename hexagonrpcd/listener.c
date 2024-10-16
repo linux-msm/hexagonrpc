@@ -20,12 +20,12 @@
  */
 
 #include <inttypes.h>
+#include <libhexagonrpc/error.h>
 #include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/interfaces/remotectl.def>
 #include <stddef.h>
 #include <stdio.h>
 
-#include "aee_error.h"
 #include "interfaces/adsp_listener.def"
 #include "iobuffer.h"
 #include "listener.h"
