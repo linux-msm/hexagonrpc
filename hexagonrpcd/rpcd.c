@@ -21,6 +21,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <libhexagonrpc/error.h>
 #include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/interfaces/remotectl.def>
 #include <misc/fastrpc.h>
@@ -32,7 +33,6 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 
-#include "aee_error.h"
 #include "apps_std.h"
 #include "hexagonfs.h"
 #include "interfaces/adsp_default_listener.def"
@@ -53,16 +53,13 @@ static int remotectl_open(int fd, char *name, struct fastrpc_context **ctx, void
 		       &dlret,
 		       256, err);
 
-	if (ret == -1) {
-		err_cb(strerror(errno));
+	if (ret) {
+		err_cb(hexagonrpc_strerror(errno));
 		return ret;
 	}
 
-	if (dlret == -5) {
+	if (dlret) {
 		err_cb(err);
-		return dlret;
-	} else if (dlret) {
-		err_cb(aee_strerror[dlret]);
 		return dlret;
 	}
 
@@ -82,13 +79,13 @@ static int remotectl_close(struct fastrpc_context *ctx, void (*err_cb)(const cha
 		       &dlret,
 		       256, err);
 
-	if (ret == -1) {
-		err_cb(strerror(errno));
+	if (ret) {
+		err_cb(hexagonrpc_strerror(errno));
 		return ret;
 	}
 
 	if (dlret) {
-		err_cb(aee_strerror[dlret]);
+		err_cb(err);
 		return dlret;
 	}
 
