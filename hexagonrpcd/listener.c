@@ -30,32 +30,6 @@
 #include "iobuffer.h"
 #include "listener.h"
 
-static int adsp_listener_init2(int fd)
-{
-	return fastrpc2(&adsp_listener_init2_def, fd, ADSP_LISTENER_HANDLE);
-}
-
-static int adsp_listener_next2(int fd,
-			       uint32_t ret_rctx,
-			       uint32_t ret_res,
-			       uint32_t ret_outbuf_len, void *ret_outbuf,
-			       uint32_t *rctx,
-			       uint32_t *handle,
-			       uint32_t *sc,
-			       uint32_t *inbufs_len,
-			       uint32_t inbufs_size, void *inbufs)
-{
-	return fastrpc2(&adsp_listener_next2_def, fd, ADSP_LISTENER_HANDLE,
-			ret_rctx,
-			ret_res,
-			ret_outbuf_len, ret_outbuf,
-			rctx,
-			handle,
-			sc,
-			inbufs_len,
-			inbufs_size, inbufs);
-}
-
 static struct fastrpc_io_buffer *allocate_outbufs(const struct fastrpc_function_def_interp2 *def,
 						  uint32_t *first_inbuf)
 {
@@ -160,7 +134,7 @@ static int return_for_next_invoke(int fd,
 		outbufs_encode(REMOTE_SCALARS_OUTBUFS(*sc), returned, outbufs);
 	}
 
-	ret = adsp_listener_next2(fd,
+	ret = adsp_listener3_next2(fd,
 				  *rctx, result,
 				  outbufs_len, outbufs,
 				  rctx, handle, sc,
@@ -290,7 +264,7 @@ int run_fastrpc_listener(int fd,
 	uint32_t n_outbufs = 0;
 	int ret;
 
-	ret = adsp_listener_init2(fd);
+	ret = adsp_listener3_init2(fd);
 	if (ret) {
 		fprintf(stderr, "Could not initialize the listener: %u\n", ret);
 		return ret;

@@ -94,11 +94,6 @@ static int remotectl_close(struct fastrpc_context *ctx, void (*err_cb)(const cha
 	return ret;
 }
 
-static int adsp_default_listener_register(struct fastrpc_context *ctx)
-{
-	return fastrpc(&adsp_default_listener_register_def, ctx);
-}
-
 static void remotectl_err(const char *err)
 {
 	fprintf(stderr, "Could not remotectl: %s\n", err);
@@ -113,7 +108,7 @@ static int register_fastrpc_listener(int fd)
 	if (ret)
 		return 1;
 
-	ret = adsp_default_listener_register(ctx);
+	ret = adsp_default_listener3_register(ctx);
 	if (ret) {
 		fprintf(stderr, "Could not register ADSP default listener\n");
 		goto err;
