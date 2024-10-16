@@ -24,87 +24,142 @@
 #include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/interfaces/remotectl.def>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include "interfaces/adsp_listener.def"
 #include "iobuffer.h"
 #include "listener.h"
 
-static struct fastrpc_io_buffer *allocate_outbufs(const struct fastrpc_function_def_interp2 *def,
-						  uint32_t *first_inbuf)
+static int check_buf_sizes(const struct hrpc_method_def_interp3 *def,
+			   uint8_t n_inbufs, uint8_t n_outbufs,
+			   const struct fastrpc_io_buffer *inbufs)
+{
+	const uint32_t *prim_in = inbufs[0].p;
+	uint8_t n_def_outbufs;
+	size_t i, j = 1;
+	size_t off;
+	size_t n_prim_in;
+
+	if (def->msg_id < 31)
+		off = 0;
+	else
+		off = 1;
+
+	for (i = 0; i < def->n_args; i++) {
+		if (def->args[i] == HEXAGONRPC_DELIMITER)
+			break;
+
+		if (!def->args[i])
+			continue;
+
+		/*
+		 * We can't check the size because the primary input buffer is
+		 * too small, so skip checking and print an error later.
+		 */
+		if ((off + i) * sizeof(uint32_t) >= inbufs[0].s)
+			continue;
+
+		if (j >= n_inbufs) {
+			fprintf(stderr, "listener: not enough input buffers\n");
+			return 1;
+		}
+
+		if ((size_t) prim_in[off + i] * def->args[i] > inbufs[j].s) {
+			fprintf(stderr, "listener: input buffer too small\n");
+			return 1;
+		}
+
+		j++;
+	}
+
+	n_prim_in = i;
+	if (def->args[i] == HEXAGONRPC_DELIMITER)
+		i++;
+
+	if (def->has_prim_out)
+		n_def_outbufs = 1;
+	else
+		n_def_outbufs = 0;
+
+	for (; i < def->n_args; i++) {
+		if (def->args[i]) {
+			n_def_outbufs++;
+			n_prim_in++;
+		}
+	}
+
+	if (n_def_outbufs != n_outbufs) {
+		fprintf(stderr, "listener: wrong amount of output buffers\n");
+		return 1;
+	}
+
+	if ((off + n_prim_in) * sizeof(uint32_t) > inbufs[0].s) {
+		fprintf(stderr, "listener: primary input buffer too small\n");
+		return 1;
+	}
+
+	return 0;
+}
+
+static struct fastrpc_io_buffer *allocate_outbufs(const struct hrpc_method_def_interp3 *def,
+						  const uint32_t *prim_in)
 {
 	struct fastrpc_io_buffer *out;
-	size_t out_count;
-	size_t i, j;
-	off_t off;
-	uint32_t *sizes;
+	// This is only used when there is a delimiter.
+	const uint32_t *size = NULL;
+	size_t n_outbufs, n_prim_out = 0;
+	size_t i;
 
-	out_count = def->out_bufs + (def->out_nums && 1);
-	/*
-	 * POSIX allows malloc to return a non-NULL pointer to a zero-size area
-	 * in memory. Since the code below assumes non-zero size if the pointer
-	 * is non-NULL, exit early if we do not need to allocate anything.
-	 */
-	if (out_count == 0)
-		return NULL;
-
-	out = malloc(sizeof(struct fastrpc_io_buffer) * out_count);
+	out = malloc(sizeof(struct fastrpc_io_buffer) * def->n_args);
 	if (out == NULL)
 		return NULL;
 
-	out[0].s = def->out_nums * 4;
-	if (out[0].s) {
-		out[0].p = malloc(def->out_nums * 4);
-		if (out[0].p == NULL)
-			goto err_free_out;
+	if (def->has_prim_out)
+		n_outbufs = 1;
+	else
+		n_outbufs = 0;
+
+	for (i = 0; i < def->n_args; i++) {
+		if (def->args[i] == HEXAGONRPC_DELIMITER) {
+			size = &prim_in[i];
+			i++;
+			break;
+		}
 	}
 
-	off = def->out_nums && 1;
-	sizes = &first_inbuf[def->in_nums + def->in_bufs];
+	for (; i < def->n_args; i++) {
+		if (def->args[i]) {
+			out[n_outbufs].s = (size_t) def->args[i] * *size;
+			out[n_outbufs].p = malloc(out[n_outbufs].s);
+			if (out[n_outbufs].p == NULL && out[n_outbufs].s)
+				goto err_free_outbufs;
 
-	for (i = 0; i < def->out_bufs; i++) {
-		out[off + i].s = sizes[i];
-		out[off + i].p = malloc(sizes[i]);
-		if (out[off + i].p == NULL)
-			goto err_free_prev;
+			n_outbufs++;
+			size = &size[1];
+		} else {
+			n_prim_out++;
+		}
+	}
+
+	if (def->has_prim_out) {
+		out[0].s = sizeof(uint32_t) * n_prim_out;
+		out[0].p = malloc(out[0].s);
+		if (out[0].p == NULL && out[0].s)
+			goto err_free_outbufs;
 	}
 
 	return out;
 
-err_free_prev:
-	for (j = 0; j < i; j++)
-		free(out[off + j].p);
+err_free_outbufs:
+	if (!def->has_prim_out)
+		free(out[0].p);
 
-err_free_out:
+	for (i = 1; i < n_outbufs; i++)
+		free(out[i].p);
+
 	free(out);
 	return NULL;
-}
-
-static int check_inbuf_sizes(const struct fastrpc_function_def_interp2 *def,
-			     const struct fastrpc_io_buffer *inbufs)
-{
-	uint8_t i;
-	const uint32_t *sizes = &((const uint32_t *) inbufs[0].p)[def->in_nums];
-
-	if (inbufs[0].s != 4 * (def->in_nums
-			      + def->in_bufs
-			      + def->out_bufs)) {
-		fprintf(stderr, "Invalid number of input numbers: %" PRIu32 " (expected %u)\n",
-				inbufs[0].s,
-				4 * (def->in_nums
-				   + def->in_bufs
-				   + def->out_bufs));
-		return -1;
-	}
-
-	for (i = 0; i < def->in_bufs; i++) {
-		if (inbufs[i + 1].s != sizes[i]) {
-			fprintf(stderr, "Invalid buffer size\n");
-			return -1;
-		}
-	}
-
-	return 0;
 }
 
 static int return_for_next_invoke(int fd,
@@ -189,10 +244,15 @@ static int invoke_requested_procedure(size_t n_ifaces,
 				      struct fastrpc_io_buffer **returned)
 {
 	const struct fastrpc_function_impl *impl;
-	uint8_t in_count;
-	uint8_t out_count;
 	uint32_t method = REMOTE_SCALARS_METHOD(sc);
 	int ret;
+
+	if (method < 31)
+		method = REMOTE_SCALARS_METHOD(sc);
+	else if (decoded[0].s >= sizeof(uint32_t))
+		method = *(const uint32_t *) decoded[0].p;
+	else
+		method = UINT32_MAX;
 
 	if (sc & 0xff) {
 		fprintf(stderr, "Handles are not supported, but got %u in, %u out\n",
@@ -221,26 +281,15 @@ static int invoke_requested_procedure(size_t n_ifaces,
 		return 1;
 	}
 
-	in_count = impl->def->in_bufs + ((impl->def->in_nums
-				       || impl->def->in_bufs
-				       || impl->def->out_bufs) && 1);
-	out_count = impl->def->out_bufs + (impl->def->out_nums && 1);
-
-	if (REMOTE_SCALARS_INBUFS(sc) != in_count
-	 || REMOTE_SCALARS_OUTBUFS(sc) != out_count) {
-		fprintf(stderr, "Unexpected buffer count: %08x\n", sc);
-		*result = AEE_EBADPARM;
-		return 1;
-	}
-
-	ret = check_inbuf_sizes(impl->def, decoded);
+	ret = check_buf_sizes(impl->def, REMOTE_SCALARS_INBUFS(sc),
+			      REMOTE_SCALARS_OUTBUFS(sc), decoded);
 	if (ret) {
 		*result = AEE_EBADPARM;
 		return 1;
 	}
 
 	*returned = allocate_outbufs(impl->def, decoded[0].p);
-	if (*returned == NULL && out_count > 0) {
+	if (*returned == NULL && impl->def->n_args > 0) {
 		perror("Could not allocate output buffers");
 		*result = AEE_ENOMEMORY;
 		return 1;
