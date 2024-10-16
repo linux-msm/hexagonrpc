@@ -1,5 +1,6 @@
 libhexagonrpc = shared_library('hexagonrpc',
   'context.c',
+  'error.c',
   'fastrpc.c',
   'interfaces.c',
   'session.c',
