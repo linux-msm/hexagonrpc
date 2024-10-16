@@ -35,4 +35,162 @@ HEXAGONRPC_DEFINE_REMOTE_METHOD(27, apps_std_closedir, 2, 0, 0, 0)
 HEXAGONRPC_DEFINE_REMOTE_METHOD(28, apps_std_readdir, 2, 0, 66, 0)
 HEXAGONRPC_DEFINE_REMOTE_METHOD(31, apps_std_stat, 1, 1, 24, 0)
 
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(1, apps_std3_freopen, true,
+				 0, HEXAGONRPC_DELIMITER, 0, 1)
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(2, apps_std3_fflush, false,
+				 0, HEXAGONRPC_DELIMITER)
+
+static inline int apps_std3_fflush(struct fastrpc_context *ctx, uint32_t stream)
+{
+	return hexagonrpc(&apps_std3_fflush_def, ctx, stream);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(3, apps_std3_fclose, false,
+				 0, HEXAGONRPC_DELIMITER)
+
+static inline int apps_std3_fclose(struct fastrpc_context *ctx, uint32_t stream)
+{
+	return hexagonrpc(&apps_std3_fclose_def, ctx, stream);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(4, apps_std3_fread, true,
+				 0, HEXAGONRPC_DELIMITER, 0, 0, 1)
+
+static inline int apps_std3_fread(struct fastrpc_context *ctx,
+				  uint32_t stream,
+				  uint32_t *written, uint32_t *is_eof,
+				  uint32_t size, void *buf)
+{
+	return hexagonrpc(&apps_std3_fread_def, ctx,
+			  stream, written, is_eof, size, buf);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(9, apps_std3_fseek, false,
+				 0, 0, 0, HEXAGONRPC_DELIMITER)
+
+static inline int apps_std3_fseek(struct fastrpc_context *ctx,
+				  uint32_t stream, uint32_t pos, uint32_t whence)
+{
+	return hexagonrpc(&apps_std3_fseek_def, ctx, stream, pos, whence);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(19, apps_std3_fopen_with_env, true,
+				 1, 1, 1, 1, HEXAGONRPC_DELIMITER, 0)
+
+static inline int apps_std3_fopen_with_env(struct fastrpc_context *ctx,
+					   uint32_t envvar_len, const char *envvar,
+					   uint32_t delim_len, const char *delim,
+					   uint32_t name_len, const char *name,
+					   uint32_t mode_len, const char *mode)
+{
+	return hexagonrpc(&apps_std3_fopen_with_env_def, ctx,
+			  envvar_len, (const void *) envvar,
+			  delim_len, (const void *) delim,
+			  name_len, (const void *) name,
+			  mode_len, (const void *) mode);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(26, apps_std3_opendir, true,
+				 1, HEXAGONRPC_DELIMITER, 0, 0)
+
+static inline int apps_std3_opendir(struct fastrpc_context *ctx,
+				    uint32_t path_len, const char *path,
+				    uint32_t *handle_lo, uint32_t *handle_hi)
+{
+	return hexagonrpc(&apps_std3_opendir_def, ctx,
+			  path_len, (const void *) path,
+			  handle_lo, handle_hi);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(27, apps_std3_closedir, false,
+				 0, 0, HEXAGONRPC_DELIMITER)
+
+static inline int apps_std3_closedir(struct fastrpc_context *ctx,
+				     uint32_t handle_lo, uint32_t handle_hi)
+{
+	return hexagonrpc(&apps_std3_closedir_def, ctx, handle_lo, handle_hi);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(28, apps_std3_readdir, true,
+				 0, 0, HEXAGONRPC_DELIMITER,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				 0, 0)
+
+static inline int apps_std3_readdir(struct fastrpc_context *ctx,
+				    uint32_t handle_lo, uint32_t handle_hi,
+				    uint32_t *inode, char *path, uint32_t *eof)
+{
+	uint32_t *buf = (uint32_t *) path;
+
+	return hexagonrpc(&apps_std3_readdir_def, ctx,
+			  handle_lo, handle_hi, inode,
+			  &buf[0], &buf[1], &buf[2], &buf[3],
+			  &buf[4], &buf[5], &buf[6], &buf[7],
+			  &buf[8], &buf[9], &buf[10], &buf[11],
+			  &buf[12], &buf[13], &buf[14], &buf[15],
+			  &buf[16], &buf[17], &buf[18], &buf[19],
+			  &buf[20], &buf[21], &buf[22], &buf[23],
+			  &buf[24], &buf[25], &buf[26], &buf[27],
+			  &buf[28], &buf[29], &buf[30], &buf[31],
+			  &buf[32], &buf[33], &buf[34], &buf[35],
+			  &buf[36], &buf[37], &buf[38], &buf[39],
+			  &buf[40], &buf[41], &buf[42], &buf[43],
+			  &buf[44], &buf[45], &buf[46], &buf[47],
+			  &buf[48], &buf[49], &buf[50], &buf[51],
+			  &buf[52], &buf[53], &buf[54], &buf[55],
+			  &buf[56], &buf[57], &buf[58], &buf[57],
+			  &buf[60], &buf[61], &buf[62], &buf[63], eof);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(29, apps_std3_mkdir, false,
+				 1, 0, HEXAGONRPC_DELIMITER)
+
+static inline int apps_std3_mkdir(struct fastrpc_context *ctx,
+				  uint32_t path_size, const char *path,
+				  uint32_t mode)
+{
+	return hexagonrpc(&apps_std3_mkdir_def, ctx,
+			  path_size, (const void *) path, mode);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(31, apps_std3_stat, true,
+				 1, HEXAGONRPC_DELIMITER,
+				 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				 0, 0, 0, 0, 0, 0, 0, 0)
+
+static inline int apps_std3_stat(struct fastrpc_context *ctx,
+				 uint32_t path_size, const char *path,
+				 uint32_t *tsz_lo, uint32_t *tsz_hi,
+				 uint32_t *dev_lo, uint32_t *dev_hi,
+				 uint32_t *ino_lo, uint32_t *ino_hi,
+				 uint32_t *mode, uint32_t *nlink,
+				 uint32_t *rdev_lo, uint32_t *rdev_hi,
+				 uint32_t *size_lo, uint32_t *size_hi,
+				 uint32_t *atime_sec_lo, uint32_t *atime_sec_hi,
+				 uint32_t *atime_nsec_lo, uint32_t *atime_nsec_hi,
+				 uint32_t *mtime_sec_lo, uint32_t *mtime_sec_hi,
+				 uint32_t *mtime_nsec_lo, uint32_t *mtime_nsec_hi,
+				 uint32_t *ctime_sec_lo, uint32_t *ctime_sec_hi,
+				 uint32_t *ctime_nsec_lo, uint32_t *ctime_nsec_hi)
+{
+	return hexagonrpc(&apps_std3_stat_def, ctx,
+			  path_size, (const void *) path,
+			  tsz_lo, tsz_hi,
+			  dev_lo, dev_hi,
+			  ino_lo, ino_hi,
+			  mode, nlink,
+			  rdev_lo, rdev_hi,
+			  size_lo, size_hi,
+			  atime_sec_lo, atime_sec_hi,
+			  atime_nsec_lo, atime_nsec_hi,
+			  mtime_sec_lo, mtime_sec_hi,
+			  mtime_nsec_lo, mtime_nsec_hi,
+			  ctime_sec_lo, ctime_sec_hi,
+			  ctime_nsec_lo, ctime_nsec_hi);
+}
+
 #endif /* INTERFACE_APPS_STD_DEF */

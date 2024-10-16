@@ -29,4 +29,29 @@
 HEXAGONRPC_DEFINE_REMOTE_METHOD(3, adsp_listener_init2, 0, 0, 0, 0)
 HEXAGONRPC_DEFINE_REMOTE_METHOD(4, adsp_listener_next2, 2, 1, 4, 1)
 
+HEXAGONRPC_DEFINE_REMOTE_METHOD3_EMPTY(3, adsp_listener3_init2)
+
+static inline int adsp_listener3_init2(int fd)
+{
+	return hexagonrpc2(&adsp_listener3_init2_def, fd, ADSP_LISTENER_HANDLE);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(4, adsp_listener3_next2, true,
+				 0, 0, 1, HEXAGONRPC_DELIMITER, 0, 0, 0, 0, 1)
+
+static inline int adsp_listener3_next2(int fd,
+				       uint32_t ret_rctx,
+				       uint32_t ret_res,
+				       uint32_t ret_outbufs_len, const void *ret_outbufs,
+				       uint32_t *rctx,
+				       uint32_t *handle,
+				       uint32_t *sc,
+				       uint32_t *inbufs_len,
+				       uint32_t inbufs_size, void *inbufs)
+{
+	return hexagonrpc2(&adsp_listener3_next2_def, fd, ADSP_LISTENER_HANDLE,
+			   ret_rctx, ret_res, ret_outbufs_len, ret_outbufs,
+			   rctx, handle, sc, inbufs_len, inbufs_size, inbufs);
+}
+
 #endif /* INTERFACE_ADSP_LISTENER_DEF */

@@ -26,4 +26,11 @@
 
 HEXAGONRPC_DEFINE_REMOTE_METHOD(0, adsp_default_listener_register, 0, 0, 0, 0)
 
+HEXAGONRPC_DEFINE_REMOTE_METHOD3_EMPTY(0, adsp_default_listener3_register)
+
+static inline int adsp_default_listener3_register(const struct fastrpc_context *ctx)
+{
+	return hexagonrpc(&adsp_default_listener3_register_def, ctx);
+}
+
 #endif /* INTERFACE_ADSP_DEFAULT_LISTENER_DEF */
