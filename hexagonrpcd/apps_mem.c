@@ -20,13 +20,13 @@
  */
 
 #include <inttypes.h>
+#include <libhexagonrpc/error.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <misc/fastrpc.h>
 #include <sys/ioctl.h>
 
-#include "aee_error.h"
 #include "apps_mem.h"
 #include "interfaces/apps_mem.def"
 #include "listener.h"
@@ -71,11 +71,9 @@ static uint32_t apps_mem_request_map64(void *data,
 	mmap.size = first_in->len;
 
 	ret = ioctl(ctx->fd, FASTRPC_IOCTL_MMAP, &mmap);
-	if (ret == -1) {
-		perror("Memory map failed");
-		return AEE_EFAILED;
-	} else if (ret) {
-		fprintf(stderr, "Memory map failed: %s\n", aee_strerror[ret]);
+	if (ret) {
+		fprintf(stderr, "Memory map failed: %s\n",
+			hexagonrpc_strerror(ret));
 		return ret;
 	}
 

@@ -19,13 +19,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <libhexagonrpc/error.h>
 #include <libhexagonrpc/interfaces/remotectl.def>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "aee_error.h"
 #include "iobuffer.h"
 #include "listener.h"
 #include "localctl.h"
