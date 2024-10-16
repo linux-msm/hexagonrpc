@@ -36,6 +36,12 @@
 					outnums, outbufs)		\
 	extern const struct fastrpc_function_def_interp2 name##_def;
 
+#define HEXAGONRPC_DEFINE_REMOTE_METHOD3_EMPTY(mid, name)	\
+	extern const struct hrpc_method_def_interp3 name##_def;
+
+#define HEXAGONRPC_DEFINE_REMOTE_METHOD3(mid, name, has_oprim, ...)	\
+	HEXAGONRPC_DEFINE_REMOTE_METHOD3_EMPTY(mid, name)
+
 #else /* HEXAGONRPC_BUILD_METHOD_DEFINITIONS */
 
 #define HEXAGONRPC_DEFINE_REMOTE_METHOD(mid, name,			\
@@ -47,6 +53,23 @@
 		.in_bufs = inbufs,					\
 		.out_nums = outnums,					\
 		.out_bufs = outbufs,					\
+	};
+
+#define HEXAGONRPC_DEFINE_REMOTE_METHOD3_EMPTY(mid, name)	\
+	const struct hrpc_method_def_interp3 name##_def = {	\
+		.msg_id = mid,					\
+		.has_prim_out = false,				\
+		.n_args = 0,					\
+		.args = NULL,					\
+	};
+
+#define HEXAGONRPC_DEFINE_REMOTE_METHOD3(mid, name, has_oprim, ...)	\
+	static const uint32_t name##_args[] = { __VA_ARGS__ };		\
+	const struct hrpc_method_def_interp3 name##_def = {		\
+		.msg_id = mid,						\
+		.has_prim_out = has_oprim,				\
+		.n_args = sizeof(name##_args) / sizeof(*name##_args),	\
+		.args = name##_args,					\
 	};
 
 #endif /* HEXAGONRPC_BUILD_METHOD_DEFINITIONS */

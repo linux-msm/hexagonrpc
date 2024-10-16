@@ -54,3 +54,21 @@ int fastrpc(const struct fastrpc_function_def_interp2 *def,
 	return ret;
 }
 
+int vhexagonrpc(const struct hrpc_method_def_interp3 *def,
+		const struct fastrpc_context *ctx, va_list arg_list)
+{
+	return vhexagonrpc2(def, ctx->fd, ctx->handle, arg_list);
+}
+
+int hexagonrpc(const struct hrpc_method_def_interp3 *def,
+	       const struct fastrpc_context *ctx, ...)
+{
+	va_list arg_list;
+	int ret;
+
+	va_start(arg_list, ctx);
+	ret = vhexagonrpc(def, ctx, arg_list);
+	va_end(arg_list);
+
+	return ret;
+}
