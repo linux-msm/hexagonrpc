@@ -24,6 +24,7 @@
 #include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/interfaces/remotectl.def>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include "interfaces/adsp_listener.def"
@@ -219,6 +220,17 @@ static int invoke_requested_procedure(size_t n_ifaces,
 	uint8_t out_count;
 	uint32_t method = REMOTE_SCALARS_METHOD(sc);
 	int ret;
+
+	if (method < 31) {
+		method = REMOTE_SCALARS_METHOD(sc);
+	} else if (REMOTE_SCALARS_INBUFS(sc) != 0
+		&& decoded[0].s >= sizeof(uint32_t)) {
+		method = *(const uint32_t *) decoded[0].p;
+	} else {
+		fprintf(stderr, "Expected extended method ID, but got none\n");
+		*result = AEE_EBADPARM;
+		return 1;
+	}
 
 	if (sc & 0xff) {
 		fprintf(stderr, "Handles are not supported, but got %u in, %u out\n",
