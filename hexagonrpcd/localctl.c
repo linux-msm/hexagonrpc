@@ -145,8 +145,14 @@ void fastrpc_localctl_deinit(struct fastrpc_interface *iface)
 }
 
 static const struct fastrpc_function_impl localctl_procs[] = {
-	{ .def = &remotectl_open_def, .impl = localctl_open, },
-	{ .def = &remotectl_close_def, .impl = localctl_close, },
+	{
+		.def = &remotectl3_open_def,
+		.impl = localctl_open,
+	},
+	{
+		.def = &remotectl3_close_def,
+		.impl = localctl_close,
+	},
 };
 
 const struct fastrpc_interface localctl_interface = {
