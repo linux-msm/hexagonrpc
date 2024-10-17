@@ -1,6 +1,7 @@
-project('fastrpc', 'c')
+project('fastrpc', 'c', version: '0.3.2')
 
-version = '0.3.2'
+version_array = meson.project_version().split('.')
+api_version = '.'.join([version_array[0], version_array[1]])
 
 include = include_directories('include')
 client_target = get_option('libexecdir') / 'hexagonrpc'
