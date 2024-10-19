@@ -5,7 +5,7 @@ libhexagonrpc = shared_library('hexagonrpc',
   'session.c',
   c_args : cflags,
   include_directories : include,
-  soversion : version,
+  soversion : api_version,
   install : true
 )
 
