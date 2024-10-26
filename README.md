@@ -125,18 +125,25 @@ Interfaces are initialized in the `start_reverse_tunnel` function, in hexagonrpc
 ## HexagonFS
 
 The reverse tunnel's `apps_std` interface serves files to the remote processor.
-These files are searched for in:
+These files are searched for in a directory tree, starting at the location
+defined by the `-R` option, or in `/usr/share/qcom` by default:
 
-    Physical file/dir			Android file/dir
-    /usr/share/qcom/acdb			/vendor/etc/acdbdata
-    /usr/share/qcom/dsp			/vendor/dsp
-    /usr/share/qcom/sensors/config		/vendor/etc/sensors/config
-    /usr/share/qcom/sensors/registry	/mnt/vendor/persist/sensors/registry/registry
-    /usr/share/qcom/sensors/sns_reg.conf	/vendor/etc/sensors/sns_reg_config
-    /usr/share/qcom/socinfo			/sys/devices/soc0
+    HexagonRPCD file/dir	Android file/dir
+    acdb			/vendor/etc/acdbdata
+    dsp			/vendor/dsp
+    sensors/config		/vendor/etc/sensors/config
+    sensors/registry	/mnt/vendor/persist/sensors/registry/registry
+    sensors/sns_reg.conf	/vendor/etc/sensors/sns_reg_config
+    socinfo			/sys/devices/soc0
 
 These files and directories should be populated with files from your device's
 Android firmware.
+
+If you can pass the `-R` option, the convention is to pass `-R
+/usr/share/qcom/SOC/VENDOR/DEVICE`, where SOC is the SoC name in lowercase,
+VENDOR is the capitalized name of the device vendor, and DEVICE is the device
+name (e.g. `-R /usr/share/qcom/sdm845/SHIFT/axolotl` or `-R
+/usr/share/qcom/sdm845/Thundercomm/db845c`).
 
 # Future plans
 
