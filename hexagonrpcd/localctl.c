@@ -19,13 +19,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <libhexagonrpc/error.h>
 #include <libhexagonrpc/interfaces/remotectl.def>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "aee_error.h"
 #include "iobuffer.h"
 #include "listener.h"
 #include "localctl.h"
@@ -145,8 +145,14 @@ void fastrpc_localctl_deinit(struct fastrpc_interface *iface)
 }
 
 static const struct fastrpc_function_impl localctl_procs[] = {
-	{ .def = &remotectl_open_def, .impl = localctl_open, },
-	{ .def = &remotectl_close_def, .impl = localctl_close, },
+	{
+		.def = &remotectl3_open_def,
+		.impl = localctl_open,
+	},
+	{
+		.def = &remotectl3_close_def,
+		.impl = localctl_close,
+	},
 };
 
 const struct fastrpc_interface localctl_interface = {

@@ -27,4 +27,18 @@
 HEXAGONRPC_DEFINE_REMOTE_METHOD(0, chre_slpi_start_thread, 0, 0, 0, 0)
 HEXAGONRPC_DEFINE_REMOTE_METHOD(1, chre_slpi_wait_on_thread_exit, 0, 0, 0, 0)
 
+HEXAGONRPC_DEFINE_REMOTE_METHOD3_EMPTY(0, chre_slpi3_start_thread)
+
+static inline int chre_slpi3_start_thread(const struct fastrpc_context *ctx)
+{
+	return hexagonrpc(&chre_slpi3_start_thread_def, ctx);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3_EMPTY(1, chre_slpi3_wait_on_thread_exit)
+
+static inline int chre_slpi3_wait_on_thread_exit(const struct fastrpc_context *ctx)
+{
+	return hexagonrpc(&chre_slpi3_wait_on_thread_exit_def, ctx);
+}
+
 #endif /* INTERFACE_CHRE_SLPI_DEF */

@@ -21,6 +21,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <libhexagonrpc/error.h>
 #include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/interfaces/remotectl.def>
 #include <misc/fastrpc.h>
@@ -32,7 +33,6 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 
-#include "aee_error.h"
 #include "apps_std.h"
 #include "hexagonfs.h"
 #include "interfaces/adsp_default_listener.def"
@@ -53,16 +53,13 @@ static int remotectl_open(int fd, char *name, struct fastrpc_context **ctx, void
 		       &dlret,
 		       256, err);
 
-	if (ret == -1) {
-		err_cb(strerror(errno));
+	if (ret) {
+		err_cb(hexagonrpc_strerror(errno));
 		return ret;
 	}
 
-	if (dlret == -5) {
+	if (dlret) {
 		err_cb(err);
-		return dlret;
-	} else if (dlret) {
-		err_cb(aee_strerror[dlret]);
 		return dlret;
 	}
 
@@ -82,24 +79,19 @@ static int remotectl_close(struct fastrpc_context *ctx, void (*err_cb)(const cha
 		       &dlret,
 		       256, err);
 
-	if (ret == -1) {
-		err_cb(strerror(errno));
+	if (ret) {
+		err_cb(hexagonrpc_strerror(errno));
 		return ret;
 	}
 
 	if (dlret) {
-		err_cb(aee_strerror[dlret]);
+		err_cb(err);
 		return dlret;
 	}
 
 	fastrpc_destroy_context(ctx);
 
 	return ret;
-}
-
-static int adsp_default_listener_register(struct fastrpc_context *ctx)
-{
-	return fastrpc(&adsp_default_listener_register_def, ctx);
 }
 
 static void remotectl_err(const char *err)
@@ -116,7 +108,7 @@ static int register_fastrpc_listener(int fd)
 	if (ret)
 		return 1;
 
-	ret = adsp_default_listener_register(ctx);
+	ret = adsp_default_listener3_register(ctx);
 	if (ret) {
 		fprintf(stderr, "Could not register ADSP default listener\n");
 		goto err;
