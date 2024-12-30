@@ -30,6 +30,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 
 #include "aee_error.h"
@@ -132,11 +134,66 @@ static void print_usage(const char *argv0)
 	printf("Usage: %s [options] -f DEVICE\n\n", argv0);
 	printf("Server for FastRPC remote procedure calls from Qualcomm DSPs\n\n"
 	       "Options:\n"
+	       "\t-c SHELL\t\tCreate a new pd running the specified ELF\n"
 	       "\t-d DSP\t\tDSP name (default: "")\n"
 	       "\t-f DEVICE\tFastRPC device node to attach to\n"
 	       "\t-p PROGRAM\tRun client program with shared file descriptor\n"
 	       "\t-R DIR\t\tRoot directory of served files (default: /usr/share/qcom/)\n"
 	       "\t-s\t\tAttach to sensorspd\n");
+}
+
+static int create_shell_pd(int fd, const char *create_shell)
+{
+	char *buf;
+	int shellfd, ret;
+	struct stat stats;
+	struct fastrpc_alloc_dma_buf dmabuf;
+	long page_size;
+	struct fastrpc_init_create init = {
+		.attrs = 0,
+		.siglen = 0,
+	};
+
+	shellfd = open(create_shell, O_RDONLY);
+	if (shellfd == -1) {
+		fprintf(stderr, "Could not open %s: %s\n",
+			create_shell, strerror(errno));
+		return -1;
+	}
+
+	ret = fstat(shellfd, &stats);
+	if (ret == -1)
+		goto err_close_fd;
+
+	page_size = sysconf(_SC_PAGE_SIZE);
+	dmabuf.size = (stats.st_size + page_size - 1) & ~(page_size - 1);
+	dmabuf.flags = 0;
+
+	ret = ioctl(fd, FASTRPC_IOCTL_ALLOC_DMA_BUFF, &dmabuf);
+	if (ret)
+		goto err_close_fd;
+
+	buf = mmap(NULL, dmabuf.size, PROT_WRITE, MAP_SHARED, dmabuf.fd, 0);
+	if (buf == MAP_FAILED) {
+		ret = -1;
+		goto err_close_dmabuf;
+	}
+
+	read(shellfd, buf, stats.st_size);
+
+	init.file = (__u64) buf;
+	init.filefd = dmabuf.fd;
+	init.filelen = stats.st_size;
+
+	ret = ioctl(fd, FASTRPC_IOCTL_INIT_CREATE, &init);
+
+	munmap(buf, dmabuf.size);
+err_close_dmabuf:
+	close(dmabuf.fd);
+err_close_fd:
+	close(shellfd);
+
+	return ret;
 }
 
 static int setup_environment(int fd)
@@ -238,6 +295,7 @@ int main(int argc, char* argv[])
 	char *fastrpc_node = NULL;
 	const char *device_dir = "/usr/share/qcom/";
 	const char *dsp = "";
+	const char *create_shell = NULL;
 	const char **progs;
 	pid_t *pids;
 	size_t n_progs = 0;
@@ -256,8 +314,11 @@ int main(int argc, char* argv[])
 		goto err_free_progs;
 	}
 
-	while ((opt = getopt(argc, argv, "d:f:p:R:s")) != -1) {
+	while ((opt = getopt(argc, argv, "c:d:f:p:R:s")) != -1) {
 		switch (opt) {
+			case 'c':
+				create_shell = optarg;
+				break;
 			case 'd':
 				dsp = optarg;
 				break;
@@ -295,6 +356,8 @@ int main(int argc, char* argv[])
 
 	if (attach_sns)
 		ret = ioctl(fd, FASTRPC_IOCTL_INIT_ATTACH_SNS, NULL);
+	else if (create_shell != NULL)
+		ret = create_shell_pd(fd, create_shell);
 	else
 		ret = ioctl(fd, FASTRPC_IOCTL_INIT_ATTACH, NULL);
 	if (ret) {
