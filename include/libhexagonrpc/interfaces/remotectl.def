@@ -29,4 +29,30 @@
 HEXAGONRPC_DEFINE_REMOTE_METHOD(0, remotectl_open, 0, 1, 2, 1)
 HEXAGONRPC_DEFINE_REMOTE_METHOD(1, remotectl_close, 1, 0, 1, 1)
 
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(0, remotectl3_open, true,
+				 1, HEXAGONRPC_DELIMITER, 0, 1, 0)
+
+static inline int remotectl3_open(int fd,
+				  uint32_t n_str, const char *str,
+				  uint32_t *handle,
+				  uint32_t err_len, char *err,
+				  uint32_t *dlerr)
+{
+	return hexagonrpc2(&remotectl3_open_def, fd, REMOTECTL_HANDLE,
+			   n_str, (const void *) str,
+			   handle, err_len, (void *) err, dlerr);
+}
+
+HEXAGONRPC_DEFINE_REMOTE_METHOD3(0, remotectl3_close, true,
+				 0, HEXAGONRPC_DELIMITER, 1, 0)
+
+static inline int remotectl3_close(int fd,
+				   uint32_t handle,
+				   uint32_t err_len, char *err,
+				   uint32_t *dlerr)
+{
+	return hexagonrpc2(&remotectl3_close_def, fd, REMOTECTL_HANDLE,
+			   handle, err_len, (void *) err, dlerr);
+}
+
 #endif /* INTERFACE_REMOTECTL_DEF */
