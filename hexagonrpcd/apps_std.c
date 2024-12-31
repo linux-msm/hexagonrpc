@@ -312,7 +312,7 @@ static uint32_t apps_std_stat(void *data,
 	if (((const char *) inbufs[1].p)[inbufs[1].s - 1] != 0)
 		return AEE_EBADPARM;
 
-	fd = hexagonfs_openat(ctx->fds, ctx->rootfd, ctx->rootfd, pathname);
+	fd = hexagonfs_openat(ctx->fds, ctx->rootfd, ctx->adsp_library_dirfd, pathname);
 	if (fd < 0) {
 		fprintf(stderr, "Could not open %s: %s\n",
 				pathname, strerror(-fd));
