@@ -1,4 +1,4 @@
-project('fastrpc', 'c', version: '0.3.2')
+project('fastrpc', 'c', version: '0.3.2', meson_version: '>=1.1')
 
 version_array = meson.project_version().split('.')
 api_version = version_array[0] + '.' + version_array[1]
