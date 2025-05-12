@@ -24,7 +24,7 @@
 
 #include "listener.h"
 
-struct fastrpc_interface *fastrpc_apps_mem_init();
+struct fastrpc_interface *fastrpc_apps_mem_init(int fd);
 void fastrpc_apps_mem_deinit(struct fastrpc_interface *iface);
 
 #endif
