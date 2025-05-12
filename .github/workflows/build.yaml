@@ -1,0 +1,29 @@
+name: Buildtest
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  build-linux:
+    strategy: 
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+          # 22.04 has old meson
+          # - runner: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y meson ninja-build
+
+      - name: build
+        run: |
+          meson setup build
+          ninja -C build
