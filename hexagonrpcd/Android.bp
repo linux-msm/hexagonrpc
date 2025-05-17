@@ -1,0 +1,23 @@
+cc_binary {
+    name: "hexagonrpcd",
+    defaults: ["hexagonrpc_defaults"],
+    srcs: [
+        "aee_error.c",
+        "apps_mem.c",
+        "apps_std.c",
+        "hexagonfs.c",
+        "hexagonfs_mapped.c",
+        "hexagonfs_plat_subtype_name.c",
+        "hexagonfs_virt_dir.c",
+        "interfaces.c",
+        "iobuffer.c",
+        "listener.c",
+        "localctl.c",
+        "rpcd.c",
+        "rpcd_builder.c",
+    ],
+    shared_libs: [
+        "libhexagonrpc",
+    ],
+    vendor: true,
+}

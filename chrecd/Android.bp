@@ -1,0 +1,12 @@
+cc_binary {
+    name: "chrecd",
+    defaults: ["hexagonrpc_defaults"],
+    srcs: [
+        "interfaces.c",
+        "main.c",
+    ],
+    shared_libs: [
+        "libhexagonrpc",
+    ],
+    vendor: true,
+}

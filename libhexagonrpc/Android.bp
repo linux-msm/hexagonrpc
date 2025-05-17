@@ -1,0 +1,11 @@
+cc_library_shared {
+    name: "libhexagonrpc",
+    defaults: ["hexagonrpc_defaults"],
+    srcs: [
+        "context.c",
+        "fastrpc.c",
+        "interfaces.c",
+        "session.c",
+    ],
+    vendor: true,
+}

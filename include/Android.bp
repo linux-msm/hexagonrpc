@@ -1,0 +1,5 @@
+cc_library_headers {
+    name: "hexagonrpc_headers",
+    export_include_dirs: ["."],
+    vendor: true,
+}
