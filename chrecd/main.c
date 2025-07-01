@@ -21,7 +21,7 @@
 
 #include <errno.h>
 #include <libhexagonrpc/fastrpc.h>
-#include <libhexagonrpc/interfaces/remotectl.def>
+#include <libhexagonrpc/handle.h>
 #include <libhexagonrpc/session.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,96 +29,44 @@
 
 #include "interfaces/chre_slpi.def"
 
-/* TODO move these to libhexagonrpc since most clients use them */
-static int remotectl_open(int fd, char *name, struct fastrpc_context **ctx, void (*err_cb)(const char *err))
+static int chre_slpi_start_thread(int fd, uint32_t handle)
 {
-	uint32_t handle;
-	int32_t dlret;
-	char err[256];
-	int ret;
-
-	ret = fastrpc2(&remotectl_open_def, fd, REMOTECTL_HANDLE,
-		       strlen(name) + 1, name,
-		       &handle,
-		       &dlret,
-		       256, err);
-
-	if (ret == -1) {
-		err_cb(strerror(errno));
-		return ret;
-	}
-
-	if (dlret == -5) {
-		err_cb(err);
-		return dlret;
-	}
-
-	*ctx = fastrpc_create_context(fd, handle);
-
-	return ret;
+	return fastrpc2(&chre_slpi_start_thread_def, fd, handle);
 }
 
-static int remotectl_close(struct fastrpc_context *ctx, void (*err_cb)(const char *err))
+static int chre_slpi_wait_on_thread_exit(int fd, uint32_t handle)
 {
-	uint32_t dlret;
-	char err[256];
-	int ret;
-
-	ret = fastrpc2(&remotectl_close_def, ctx->fd, REMOTECTL_HANDLE,
-		       ctx->handle,
-		       &dlret,
-		       256, err);
-
-	if (ret == -1) {
-		err_cb(strerror(errno));
-		return ret;
-	}
-
-	fastrpc_destroy_context(ctx);
-
-	return ret;
-}
-
-static void remotectl_err(const char *err)
-{
-	fprintf(stderr, "Could not remotectl: %s\n", err);
-}
-
-static int chre_slpi_start_thread(struct fastrpc_context *ctx)
-{
-	return fastrpc(&chre_slpi_start_thread_def, ctx);
-}
-
-static int chre_slpi_wait_on_thread_exit(struct fastrpc_context *ctx)
-{
-	return fastrpc(&chre_slpi_wait_on_thread_exit_def, ctx);
+	return fastrpc2(&chre_slpi_wait_on_thread_exit_def, fd, handle);
 }
 
 int main()
 {
-	struct fastrpc_context *ctx;
+	uint32_t hdl;
+	char err[256];
 	int fd, ret;
 
 	fd = hexagonrpc_fd_from_env();
 	if (fd == -1)
 		return 1;
 
-	ret = remotectl_open(fd, "chre_slpi", &ctx, remotectl_err);
-	if (ret)
+	ret = hexagonrpc_open(fd, "chre_slpi", &hdl, 256, err);
+	if (ret) {
+		fprintf(stderr, "Could not open CHRE remote interface: %s\n", err);
 		return 1;
+	}
 
-	ret = chre_slpi_start_thread(ctx);
+	ret = chre_slpi_start_thread(fd, hdl);
 	if (ret) {
 		fprintf(stderr, "Could not start CHRE\n");
 		goto err;
 	}
 
-	ret = chre_slpi_wait_on_thread_exit(ctx);
+	ret = chre_slpi_wait_on_thread_exit(fd, hdl);
 	if (ret) {
 		fprintf(stderr, "Could not wait for CHRE thread\n");
 		goto err;
 	}
 
 err:
-	remotectl_close(ctx, remotectl_err);
+	hexagonrpc_close(fd, hdl);
 }
