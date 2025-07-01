@@ -19,7 +19,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <libhexagonrpc/fastrpc.h>
+#include <libhexagonrpc/hexagonrpc.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../hexagonrpcd/iobuffer.h"
