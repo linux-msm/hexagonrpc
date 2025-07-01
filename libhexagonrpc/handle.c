@@ -24,16 +24,15 @@
 #include <libhexagonrpc/error.h>
 #include <libhexagonrpc/hexagonrpc.h>
 #include <libhexagonrpc/session.h>
-#include <libhexagonrpc/interfaces/remotectl.def>
+#include <libhexagonrpc/interface/remotectl.h>
 
 int hexagonrpc_open(int fd, const char *name, uint32_t *hdl, size_t n_err, char *err)
 {
 	uint32_t dlerr;
 	int ret;
 
-	ret = fastrpc2(&remotectl_open_def, fd, REMOTECTL_HANDLE,
-		       strlen(name) + 1, name, hdl,
-		       n_err, err, &dlerr);
+	ret = remotectl_open(fd, strlen(name) + 1, name, hdl,
+			     n_err, err, &dlerr);
 	if (ret) {
 		strncpy(err, hexagonrpc_strerror(ret), n_err);
 		err[n_err - 1] = '\0';
@@ -54,6 +53,5 @@ void hexagonrpc_close(int fd, uint32_t hdl)
 {
 	uint32_t dlerr;
 
-	fastrpc2(&remotectl_open_def, fd, REMOTECTL_HANDLE,
-		 hdl, 0, NULL, &dlerr);
+	remotectl_close(fd, hdl, 0, NULL, &dlerr);
 }

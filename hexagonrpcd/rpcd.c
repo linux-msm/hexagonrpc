@@ -24,7 +24,7 @@
 #include <libhexagonrpc/error.h>
 #include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/handle.h>
-#include <libhexagonrpc/interfaces/remotectl.def>
+#include <libhexagonrpc/interface/remotectl.h>
 #include <libhexagonrpc/session.h>
 #include <misc/fastrpc.h>
 #include <unistd.h>
@@ -211,7 +211,7 @@ static void *start_reverse_tunnel(int fd, const char *device_dir, const char *ds
 	 * fully populate the ifaces array as long as it receives a pointer to
 	 * it.
 	 */
-	ifaces[REMOTECTL_HANDLE] = fastrpc_localctl_init(n_ifaces, ifaces);
+	ifaces[REMOTECTL] = fastrpc_localctl_init(n_ifaces, ifaces);
 
 	// Dynamic interfaces with no hardcoded handle
 	ifaces[1] = fastrpc_apps_std_init(root_dir);
@@ -223,7 +223,7 @@ static void *start_reverse_tunnel(int fd, const char *device_dir, const char *ds
 
 	run_fastrpc_listener(fd, n_ifaces, ifaces);
 
-	fastrpc_localctl_deinit(ifaces[REMOTECTL_HANDLE]);
+	fastrpc_localctl_deinit(ifaces[REMOTECTL]);
 
 	free(ifaces);
 
