@@ -20,7 +20,7 @@
  */
 
 #include <libhexagonrpc/error.h>
-#include <libhexagonrpc/interfaces/remotectl.def>
+#include <libhexagonrpc/interface/remotectl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -145,8 +145,8 @@ void fastrpc_localctl_deinit(struct fastrpc_interface *iface)
 }
 
 static const struct fastrpc_function_impl localctl_procs[] = {
-	{ .def = &remotectl_open_def, .impl = localctl_open, },
-	{ .def = &remotectl_close_def, .impl = localctl_close, },
+	{ .def4 = &remotectl_open_def, .impl = localctl_open, },
+	{ .def4 = &remotectl_close_def, .impl = localctl_close, },
 };
 
 const struct fastrpc_interface localctl_interface = {
