@@ -20,7 +20,7 @@
  */
 
 #include <endian.h>
-#include <libhexagonrpc/fastrpc.h>
+#include <libhexagonrpc/hexagonrpc.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
