@@ -22,7 +22,6 @@
 #include <inttypes.h>
 #include <libhexagonrpc/error.h>
 #include <libhexagonrpc/fastrpc.h>
-#include <libhexagonrpc/interfaces/remotectl.def>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
