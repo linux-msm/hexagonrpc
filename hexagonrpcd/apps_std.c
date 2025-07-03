@@ -409,15 +409,15 @@ static const struct fastrpc_function_impl apps_std_procs[] = {
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
 	{
-		.def4 = &apps_std_fflush_def,
+		.def = &apps_std_fflush_def,
 		.impl = apps_std_fflush,
 	},
 	{
-		.def4 = &apps_std_fclose_def,
+		.def = &apps_std_fclose_def,
 		.impl = apps_std_fclose,
 	},
 	{
-		.def4 = &apps_std_fread_def,
+		.def = &apps_std_fread_def,
 		.impl = apps_std_fread,
 	},
 	{ .def = NULL, .impl = NULL, },
@@ -425,7 +425,7 @@ static const struct fastrpc_function_impl apps_std_procs[] = {
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
 	{
-		.def4 = &apps_std_fseek_def,
+		.def = &apps_std_fseek_def,
 		.impl = apps_std_fseek,
 	},
 	{ .def = NULL, .impl = NULL, },
@@ -438,7 +438,7 @@ static const struct fastrpc_function_impl apps_std_procs[] = {
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
 	{
-		.def4 = &apps_std_fopen_with_env_def,
+		.def = &apps_std_fopen_with_env_def,
 		.impl = apps_std_fopen_with_env,
 	},
 	{ .def = NULL, .impl = NULL, },
@@ -448,21 +448,21 @@ static const struct fastrpc_function_impl apps_std_procs[] = {
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
 	{
-		.def4 = &apps_std_opendir_def,
+		.def = &apps_std_opendir_def,
 		.impl = apps_std_opendir,
 	},
 	{
-		.def4 = &apps_std_closedir_def,
+		.def = &apps_std_closedir_def,
 		.impl = apps_std_closedir,
 	},
 	{
-		.def4 = &apps_std_readdir_def,
+		.def = &apps_std_readdir_def,
 		.impl = apps_std_readdir,
 	},
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
 	{
-		.def4 = &apps_std_stat_def,
+		.def = &apps_std_stat_def,
 		.impl = apps_std_stat,
 	},
 };
