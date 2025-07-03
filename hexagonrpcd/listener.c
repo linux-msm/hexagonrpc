@@ -27,35 +27,9 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "interfaces/adsp_listener.def"
+#include "interface/adsp_listener.h"
 #include "iobuffer.h"
 #include "listener.h"
-
-static int adsp_listener_init2(int fd)
-{
-	return fastrpc2(&adsp_listener_init2_def, fd, ADSP_LISTENER_HANDLE);
-}
-
-static int adsp_listener_next2(int fd,
-			       uint32_t ret_rctx,
-			       uint32_t ret_res,
-			       uint32_t ret_outbuf_len, void *ret_outbuf,
-			       uint32_t *rctx,
-			       uint32_t *handle,
-			       uint32_t *sc,
-			       uint32_t *inbufs_len,
-			       uint32_t inbufs_size, void *inbufs)
-{
-	return fastrpc2(&adsp_listener_next2_def, fd, ADSP_LISTENER_HANDLE,
-			ret_rctx,
-			ret_res,
-			ret_outbuf_len, ret_outbuf,
-			rctx,
-			handle,
-			sc,
-			inbufs_len,
-			inbufs_size, inbufs);
-}
 
 static int count_sizes_in_type4(const struct hrpc_inner_type_def_interp4 *type,
 				const struct fastrpc_io_buffer **curr_inbuf,

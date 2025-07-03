@@ -22,4 +22,3 @@
 #define HEXAGONRPC_BUILD_METHOD_DEFINITIONS 1
 
 #include "interfaces/adsp_default_listener.def"
-#include "interfaces/adsp_listener.def"
