@@ -27,7 +27,7 @@
 #include <sys/types.h>
 
 struct fastrpc_io_buffer {
-	uint32_t s;
+	size_t s;
 	void *p;
 };
 

@@ -115,7 +115,7 @@ static int check_inbuf_sizes(const struct fastrpc_function_def_interp2 *def,
 	if (inbufs[0].s != 4U * (def->in_nums
 			      + def->in_bufs
 			      + def->out_bufs)) {
-		fprintf(stderr, "Invalid number of input numbers: %" PRIu32 " (expected %u)\n",
+		fprintf(stderr, "Invalid number of input numbers: %zu (expected %u)\n",
 				inbufs[0].s,
 				4 * (def->in_nums
 				   + def->in_bufs
