@@ -22,6 +22,7 @@
 #include <inttypes.h>
 #include <libhexagonrpc/error.h>
 #include <libhexagonrpc/fastrpc.h>
+#include <libhexagonrpc/hexagonrpc.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -54,6 +55,392 @@ static int adsp_listener_next2(int fd,
 			sc,
 			inbufs_len,
 			inbufs_size, inbufs);
+}
+
+static int count_sizes_in_type4(const struct hrpc_inner_type_def_interp4 *type,
+				const struct fastrpc_io_buffer **curr_inbuf,
+				const struct fastrpc_io_buffer *inbufs_end,
+				const void **inst, const void *end)
+{
+	size_t size, i;
+
+	for (i = 0; i < type->s; i++) {
+		switch (type->p[i].t) {
+			case HRPC_ARG_BLOB:
+				*inst = (const char *) *inst + type->p[i].d;
+				if (*inst > end)
+					return -1;
+
+				break;
+			case HRPC_ARG_BLOB_SEQ:
+				if ((const void *) ((const uint32_t *) *inst + 1) > end)
+					return -1;
+
+				if (*curr_inbuf >= inbufs_end)
+					return -1;
+
+				size = *(const uint32_t *) *inst;
+				size *= type->p[i].d;
+				if ((*curr_inbuf)->s != size)
+					return -1;
+
+				*inst = (const uint32_t *) *inst + 1;
+				(*curr_inbuf)++;
+				break;
+			default:
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int count_sizes_out_type4(const struct hrpc_inner_type_def_interp4 *type,
+				 uint8_t *n_outbufs,
+				 const void **inst, const void *end)
+{
+	size_t i;
+
+	for (i = 0; i < type->s; i++) {
+		switch (type->p[i].t) {
+			case HRPC_ARG_BLOB:
+				break;
+			case HRPC_ARG_BLOB_SEQ:
+				*inst = (const uint32_t *) *inst + 1;
+				if (*inst > end)
+					return -1;
+
+				if (*n_outbufs == 0)
+					return -1;
+				(*n_outbufs)--;
+				break;
+			default:
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int count_sizes4(const struct hrpc_method_def_interp4 *def,
+			uint8_t n_inbufs, uint8_t n_outbufs,
+			const struct fastrpc_io_buffer *inbufs)
+{
+	const struct hrpc_inner_type_def_interp4 *inner_type;
+	const void *pos = inbufs[0].p;
+	const void *end = (const char *) inbufs[0].p + inbufs[0].s;
+	const struct fastrpc_io_buffer *inbufs_end = &inbufs[n_inbufs];
+	const struct fastrpc_io_buffer *curr_inbuf = &inbufs[1];
+	size_t size, i, j;
+	const void *inner_pos;
+	const void *inner_end;
+	int ret;
+
+	if (def->msg_id > 30)
+		pos = (const uint32_t *) pos + 1;
+
+	for (i = 0; i < def->n_args; i++) {
+		switch (def->args[i].t) {
+			case HRPC_ARG_WORD:
+				if (def->args[i].d != 4 && def->args[i].d != 8)
+					return -1;
+
+				/* fall through */
+			case HRPC_ARG_BLOB:
+				pos = (const char *) pos + def->args[i].d;
+				if (pos > end)
+					return -1;
+
+				break;
+			case HRPC_ARG_TYPE:
+				inner_type = &def->inner_types[def->args[i].d];
+				ret = count_sizes_in_type4(inner_type,
+							   &curr_inbuf,
+							   inbufs_end,
+							   &pos, end);
+				if (ret)
+					return -1;
+
+				break;
+			case HRPC_ARG_BLOB_SEQ:
+				if ((const void *) ((const uint32_t *) pos + 1) > end)
+					return -1;
+
+				if (curr_inbuf >= inbufs_end)
+					return -1;
+
+				size = *(const uint32_t *) pos * def->args[i].d;
+				if (curr_inbuf->s != size)
+					return -1;
+
+				pos = (const uint32_t *) pos + 1;
+				curr_inbuf++;
+				break;
+			case HRPC_ARG_TYPE_SEQ:
+				if ((const void *) ((const uint32_t *) pos + 1) > end)
+					return -1;
+
+				if (curr_inbuf >= inbufs_end)
+					return -1;
+
+				size = *(const uint32_t *) pos;
+				pos = (const uint32_t *) pos + 1;
+
+				inner_type = &def->inner_types[def->args[i].d];
+				inner_pos = curr_inbuf->p;
+				inner_end = (const char *) curr_inbuf->p + curr_inbuf->s;
+				curr_inbuf++;
+				for (j = 0; j < size; j++) {
+					ret = count_sizes_in_type4(inner_type,
+								   &curr_inbuf,
+								   inbufs_end,
+								   &inner_pos,
+								   inner_end);
+					if (ret)
+						return -1;
+				}
+
+				break;
+			case HRPC_ARG_OUT_BLOB:
+				break;
+			case HRPC_ARG_OUT_TYPE:
+				inner_type = &def->inner_types[def->args[i].d];
+				ret = count_sizes_out_type4(inner_type,
+							    &n_outbufs,
+							    &pos, end);
+				if (ret)
+					return -1;
+
+				break;
+			case HRPC_ARG_OUT_BLOB_SEQ:
+				if ((const void *) ((const uint32_t *) pos + 1) > end)
+					return -1;
+
+				if (n_outbufs == 0)
+					return -1;
+
+				pos = (const uint32_t *) pos + 1;
+				n_outbufs--;
+				break;
+			case HRPC_ARG_OUT_TYPE_SEQ:
+				if ((const void *) ((const uint32_t *) pos + 1) > end)
+					return -1;
+
+				if (curr_inbuf >= inbufs_end)
+					return -1;
+
+				size = *(const uint32_t *) pos;
+				pos = (const uint32_t *) pos + 1;
+
+				inner_type = &def->inner_types[def->args[i].d];
+				inner_pos = curr_inbuf->p;
+				inner_end = (const char *) curr_inbuf->p + curr_inbuf->s;
+				curr_inbuf++;
+				for (j = 0; j < size; j++) {
+					ret = count_sizes_out_type4(inner_type,
+								    &n_outbufs,
+								    &inner_pos,
+								    inner_end);
+					if (ret)
+						return -1;
+				}
+
+				break;
+			default:
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int alloc_outbufs_in_type4(const struct hrpc_inner_type_def_interp4 *type,
+				  const struct fastrpc_io_buffer **curr_inbuf,
+				  const void **inst)
+{
+	size_t i;
+
+	for (i = 0; i < type->s; i++) {
+		switch (type->p[i].t) {
+			case HRPC_ARG_BLOB:
+				*inst = (const char *) *inst + type->p[i].d;
+				break;
+			case HRPC_ARG_BLOB_SEQ:
+				*inst = (const uint32_t *) *inst + 1;
+				(*curr_inbuf)++;
+				break;
+			default:
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int alloc_outbufs_out_type4(const struct hrpc_inner_type_def_interp4 *type,
+				   struct fastrpc_io_buffer **curr_outbuf,
+				   const void **inst_in, size_t *n_inst_out)
+{
+	size_t size, i;
+
+	for (i = 0; i < type->s; i++) {
+		switch (type->p[i].t) {
+			case HRPC_ARG_BLOB:
+				*n_inst_out += type->p[i].d;
+				break;
+			case HRPC_ARG_BLOB_SEQ:
+				size = type->p[i].d;
+				size *= *(const uint32_t *) *inst_in;
+
+				(*curr_outbuf)->s = size;
+				(*curr_outbuf)->p = malloc(size);
+				if ((*curr_outbuf)->p == NULL)
+					return -1;
+
+				*inst_in = (const uint32_t *) *inst_in + 1;
+				(*curr_outbuf)++;
+				break;
+			default:
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
+static struct fastrpc_io_buffer *alloc_outbufs4(const struct hrpc_method_def_interp4 *def,
+						const struct fastrpc_io_buffer *inbufs,
+						uint8_t n_outbufs)
+{
+	const struct hrpc_inner_type_def_interp4 *inner_type;
+	const void *prim_in = inbufs[0].p;
+	struct fastrpc_io_buffer *out, *curr_outbuf, *inner_outbuf;
+	const struct fastrpc_io_buffer *curr_inbuf = &inbufs[1];
+	const void *inner_pos;
+	size_t i, j, size, prim_out_size = 0;
+	int ret;
+
+	curr_outbuf = out = calloc(n_outbufs, sizeof(*out));
+	if (out == NULL)
+		return NULL;
+
+	for (i = 0; i < def->n_args; i++) {
+		if (def->args[i].t == HRPC_ARG_OUT_BLOB
+		 || def->args[i].t == HRPC_ARG_OUT_TYPE) {
+			curr_outbuf = &out[1];
+			break;
+		}
+	}
+
+	for (i = 0; i < def->n_args; i++) {
+		switch (def->args[i].t) {
+			case HRPC_ARG_WORD:
+			case HRPC_ARG_BLOB:
+				prim_in = (const char *) prim_in + def->args[i].d;
+				break;
+			case HRPC_ARG_TYPE:
+				inner_type = &def->inner_types[def->args[i].d];
+				ret = alloc_outbufs_in_type4(inner_type,
+							     &curr_inbuf,
+							     &prim_in);
+				if (ret)
+					return NULL;
+
+				break;
+			case HRPC_ARG_BLOB_SEQ:
+				prim_in = (const uint32_t *) prim_in + 1;
+				curr_inbuf++;
+				break;
+			case HRPC_ARG_TYPE_SEQ:
+				size = *(const uint32_t *) prim_in;
+				prim_in = (const uint32_t *) prim_in + 1;
+
+				inner_type = &def->inner_types[def->args[i].d];
+				inner_pos = curr_inbuf->p;
+				curr_inbuf++;
+				for (j = 0; j < size; j++) {
+					ret = alloc_outbufs_in_type4(inner_type,
+								     &curr_inbuf,
+								     &inner_pos);
+					if (ret)
+						return NULL;
+				}
+
+				break;
+			case HRPC_ARG_OUT_BLOB:
+				prim_out_size += def->args[i].d;
+				break;
+			case HRPC_ARG_OUT_TYPE:
+				inner_type = &def->inner_types[def->args[i].d];
+				ret = alloc_outbufs_out_type4(inner_type,
+							      &curr_outbuf,
+							      &prim_in,
+							      &prim_out_size);
+				if (ret)
+					return NULL;
+
+				break;
+			case HRPC_ARG_OUT_BLOB_SEQ:
+				size = *(const uint32_t *) prim_in;
+				size *= def->args[i].d;
+
+				curr_outbuf->s = size;
+				curr_outbuf->p = malloc(size);
+				if (curr_outbuf->p == NULL)
+					goto err;
+
+				curr_outbuf++;
+
+				prim_in = (const uint32_t *) prim_in + 1;
+				break;
+			case HRPC_ARG_OUT_TYPE_SEQ:
+				size = *(const uint32_t *) prim_in;
+				prim_in = (const uint32_t *) prim_in + 1;
+
+				inner_type = &def->inner_types[def->args[i].d];
+				inner_pos = curr_inbuf->p;
+				curr_inbuf++;
+
+				inner_outbuf = curr_outbuf;
+				curr_outbuf++;
+
+				for (j = 0; j < size; j++) {
+					ret = alloc_outbufs_out_type4(inner_type,
+								      &curr_outbuf,
+								      &inner_pos,
+								      &inner_outbuf->s);
+					if (ret)
+						return NULL;
+				}
+
+				inner_outbuf->p = malloc(inner_outbuf->s);
+				if (inner_outbuf->p == NULL)
+					return NULL;
+
+				break;
+			default:
+				goto err;
+		}
+	}
+
+	if (prim_out_size != 0) {
+		out[0].s = prim_out_size;
+		out[0].p = malloc(prim_out_size);
+		if (out[0].p == NULL)
+			goto err;
+	}
+
+	return out;
+
+err:
+	for (; curr_outbuf >= out; curr_outbuf--) {
+		if (curr_outbuf->p != NULL)
+			free(curr_outbuf->p);
+	}
+
+	free(out);
+
+	return NULL;
 }
 
 static struct fastrpc_io_buffer *allocate_outbufs(const struct fastrpc_function_def_interp2 *def,
@@ -252,35 +639,53 @@ static int invoke_requested_procedure(size_t n_ifaces,
 
 	impl = &ifaces[handle]->procs[method];
 
-	if (impl->def == NULL || impl->impl == NULL) {
+	if ((impl->def == NULL && impl->def4 == NULL) || impl->impl == NULL) {
 		fprintf(stderr, "Unsupported method: %u (%08x)\n", method, sc);
 		*result = AEE_EUNSUPPORTED;
 		return 1;
 	}
 
-	in_count = impl->def->in_bufs + ((impl->def->in_nums
-				       || impl->def->in_bufs
-				       || impl->def->out_bufs) && 1);
-	out_count = impl->def->out_bufs + (impl->def->out_nums && 1);
+	if (impl->def4) {
+		ret = count_sizes4(impl->def4, REMOTE_SCALARS_INBUFS(sc),
+				   REMOTE_SCALARS_OUTBUFS(sc), decoded);
+		if (ret) {
+			fprintf(stderr, "Inconsistent buffer sizes\n");
+			*result = AEE_EBADPARM;
+			return 1;
+		}
 
-	if (REMOTE_SCALARS_INBUFS(sc) != in_count
-	 || REMOTE_SCALARS_OUTBUFS(sc) != out_count) {
-		fprintf(stderr, "Unexpected buffer count: %08x\n", sc);
-		*result = AEE_EBADPARM;
-		return 1;
-	}
+		*returned = alloc_outbufs4(impl->def4, decoded,
+					   REMOTE_SCALARS_OUTBUFS(sc));
+		if (*returned == NULL && impl->def4->n_args > 0) {
+			perror("Could not allocate output buffers");
+			*result = AEE_ENOMEMORY;
+			return 1;
+		}
+	} else {
+		in_count = impl->def->in_bufs + ((impl->def->in_nums
+					       || impl->def->in_bufs
+					       || impl->def->out_bufs) && 1);
+		out_count = impl->def->out_bufs + (impl->def->out_nums && 1);
 
-	ret = check_inbuf_sizes(impl->def, decoded);
-	if (ret) {
-		*result = AEE_EBADPARM;
-		return 1;
-	}
+		if (REMOTE_SCALARS_INBUFS(sc) != in_count
+		 || REMOTE_SCALARS_OUTBUFS(sc) != out_count) {
+			fprintf(stderr, "Unexpected buffer count: %08x\n", sc);
+			*result = AEE_EBADPARM;
+			return 1;
+		}
 
-	*returned = allocate_outbufs(impl->def, decoded[0].p);
-	if (*returned == NULL && out_count > 0) {
-		perror("Could not allocate output buffers");
-		*result = AEE_ENOMEMORY;
-		return 1;
+		ret = check_inbuf_sizes(impl->def, decoded);
+		if (ret) {
+			*result = AEE_EBADPARM;
+			return 1;
+		}
+
+		*returned = allocate_outbufs(impl->def, decoded[0].p);
+		if (*returned == NULL && out_count > 0) {
+			perror("Could not allocate output buffers");
+			*result = AEE_ENOMEMORY;
+			return 1;
+		}
 	}
 
 	*result = impl->impl(ifaces[handle]->data, decoded, *returned);
