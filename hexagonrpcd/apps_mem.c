@@ -28,7 +28,7 @@
 #include <sys/ioctl.h>
 
 #include "apps_mem.h"
-#include "interfaces/apps_mem.def"
+#include "interface/apps_mem.h"
 #include "listener.h"
 
 // See fastrpc.git/src/apps_mem_imp.c
@@ -128,7 +128,7 @@ void fastrpc_apps_mem_deinit(struct fastrpc_interface *iface)
 static const struct fastrpc_function_impl apps_mem_procs[] = {
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
-	{ .def = &apps_mem_request_map64_def, .impl = apps_mem_request_map64, },
+	{ .def4 = &apps_mem_request_map64_def, .impl = apps_mem_request_map64, },
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
