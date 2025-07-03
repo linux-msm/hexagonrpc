@@ -1,7 +1,7 @@
 executable('hexagonrpcd',
   'apps_mem.c',
   'apps_std.c',
-  'interfaces.c',
+  'interface/adsp_default_listener.c',
   'interface/adsp_listener.c',
   'interface/apps_mem.c',
   'interface/apps_std.c',

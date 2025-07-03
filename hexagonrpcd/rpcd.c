@@ -22,7 +22,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <libhexagonrpc/error.h>
-#include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/handle.h>
 #include <libhexagonrpc/interface/remotectl.h>
 #include <libhexagonrpc/session.h>
@@ -40,15 +39,10 @@
 #include "apps_mem.h"
 #include "apps_std.h"
 #include "hexagonfs.h"
-#include "interfaces/adsp_default_listener.def"
+#include "interface/adsp_default_listener.h"
 #include "listener.h"
 #include "localctl.h"
 #include "rpcd_builder.h"
-
-static int adsp_default_listener_register(int fd, uint32_t handle)
-{
-	return fastrpc2(&adsp_default_listener_register_def, fd, handle);
-}
 
 static int register_fastrpc_listener(int fd)
 {
