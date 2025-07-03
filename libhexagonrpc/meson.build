@@ -1,7 +1,5 @@
 libhexagonrpc = shared_library('hexagonrpc',
-  'context.c',
   'error.c',
-  'fastrpc.c',
   'handle.c',
   'hexagonrpc.c',
   'interface/remotectl.c',
