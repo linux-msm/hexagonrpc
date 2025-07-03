@@ -20,24 +20,13 @@
  */
 
 #include <errno.h>
-#include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/handle.h>
 #include <libhexagonrpc/session.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "interfaces/chre_slpi.def"
-
-static int chre_slpi_start_thread(int fd, uint32_t handle)
-{
-	return fastrpc2(&chre_slpi_start_thread_def, fd, handle);
-}
-
-static int chre_slpi_wait_on_thread_exit(int fd, uint32_t handle)
-{
-	return fastrpc2(&chre_slpi_wait_on_thread_exit_def, fd, handle);
-}
+#include "interface/chre_slpi.h"
 
 int main()
 {
