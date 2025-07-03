@@ -1,5 +1,5 @@
 executable('chrecd',
-  'interfaces.c',
+  'interface/chre_slpi.c',
   'main.c',
   c_args : cflags,
   include_directories : include,
