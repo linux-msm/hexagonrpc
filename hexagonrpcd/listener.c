@@ -21,7 +21,6 @@
 
 #include <inttypes.h>
 #include <libhexagonrpc/error.h>
-#include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/hexagonrpc.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -417,83 +416,6 @@ err:
 	return NULL;
 }
 
-static struct fastrpc_io_buffer *allocate_outbufs(const struct fastrpc_function_def_interp2 *def,
-						  uint32_t *first_inbuf)
-{
-	struct fastrpc_io_buffer *out;
-	size_t out_count;
-	size_t i, j;
-	off_t off;
-	uint32_t *sizes;
-
-	out_count = def->out_bufs + (def->out_nums && 1);
-	/*
-	 * POSIX allows malloc to return a non-NULL pointer to a zero-size area
-	 * in memory. Since the code below assumes non-zero size if the pointer
-	 * is non-NULL, exit early if we do not need to allocate anything.
-	 */
-	if (out_count == 0)
-		return NULL;
-
-	out = malloc(sizeof(struct fastrpc_io_buffer) * out_count);
-	if (out == NULL)
-		return NULL;
-
-	out[0].s = def->out_nums * 4;
-	if (out[0].s) {
-		out[0].p = malloc(def->out_nums * 4);
-		if (out[0].p == NULL)
-			goto err_free_out;
-	}
-
-	off = def->out_nums && 1;
-	sizes = &first_inbuf[def->in_nums + def->in_bufs];
-
-	for (i = 0; i < def->out_bufs; i++) {
-		out[off + i].s = sizes[i];
-		out[off + i].p = malloc(sizes[i]);
-		if (out[off + i].p == NULL)
-			goto err_free_prev;
-	}
-
-	return out;
-
-err_free_prev:
-	for (j = 0; j < i; j++)
-		free(out[off + j].p);
-
-err_free_out:
-	free(out);
-	return NULL;
-}
-
-static int check_inbuf_sizes(const struct fastrpc_function_def_interp2 *def,
-			     const struct fastrpc_io_buffer *inbufs)
-{
-	uint8_t i;
-	const uint32_t *sizes = &((const uint32_t *) inbufs[0].p)[def->in_nums];
-
-	if (inbufs[0].s != 4U * (def->in_nums
-			      + def->in_bufs
-			      + def->out_bufs)) {
-		fprintf(stderr, "Invalid number of input numbers: %zu (expected %u)\n",
-				inbufs[0].s,
-				4 * (def->in_nums
-				   + def->in_bufs
-				   + def->out_bufs));
-		return -1;
-	}
-
-	for (i = 0; i < def->in_bufs; i++) {
-		if (inbufs[i + 1].s != sizes[i]) {
-			fprintf(stderr, "Invalid buffer size\n");
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
 static int return_for_next_invoke(int fd,
 				  uint32_t result,
 				  uint32_t *rctx,
@@ -576,8 +498,6 @@ static int invoke_requested_procedure(size_t n_ifaces,
 				      struct fastrpc_io_buffer **returned)
 {
 	const struct fastrpc_function_impl *impl;
-	uint8_t in_count;
-	uint8_t out_count;
 	uint32_t method = REMOTE_SCALARS_METHOD(sc);
 	int ret;
 
@@ -613,53 +533,26 @@ static int invoke_requested_procedure(size_t n_ifaces,
 
 	impl = &ifaces[handle]->procs[method];
 
-	if ((impl->def == NULL && impl->def4 == NULL) || impl->impl == NULL) {
+	if (impl->def == NULL || impl->impl == NULL) {
 		fprintf(stderr, "Unsupported method: %u (%08x)\n", method, sc);
 		*result = AEE_EUNSUPPORTED;
 		return 1;
 	}
 
-	if (impl->def4) {
-		ret = count_sizes4(impl->def4, REMOTE_SCALARS_INBUFS(sc),
-				   REMOTE_SCALARS_OUTBUFS(sc), decoded);
-		if (ret) {
-			fprintf(stderr, "Inconsistent buffer sizes\n");
-			*result = AEE_EBADPARM;
-			return 1;
-		}
+	ret = count_sizes4(impl->def, REMOTE_SCALARS_INBUFS(sc),
+			   REMOTE_SCALARS_OUTBUFS(sc), decoded);
+	if (ret) {
+		fprintf(stderr, "Inconsistent buffer sizes\n");
+		*result = AEE_EBADPARM;
+		return 1;
+	}
 
-		*returned = alloc_outbufs4(impl->def4, decoded,
-					   REMOTE_SCALARS_OUTBUFS(sc));
-		if (*returned == NULL && impl->def4->n_args > 0) {
-			perror("Could not allocate output buffers");
-			*result = AEE_ENOMEMORY;
-			return 1;
-		}
-	} else {
-		in_count = impl->def->in_bufs + ((impl->def->in_nums
-					       || impl->def->in_bufs
-					       || impl->def->out_bufs) && 1);
-		out_count = impl->def->out_bufs + (impl->def->out_nums && 1);
-
-		if (REMOTE_SCALARS_INBUFS(sc) != in_count
-		 || REMOTE_SCALARS_OUTBUFS(sc) != out_count) {
-			fprintf(stderr, "Unexpected buffer count: %08x\n", sc);
-			*result = AEE_EBADPARM;
-			return 1;
-		}
-
-		ret = check_inbuf_sizes(impl->def, decoded);
-		if (ret) {
-			*result = AEE_EBADPARM;
-			return 1;
-		}
-
-		*returned = allocate_outbufs(impl->def, decoded[0].p);
-		if (*returned == NULL && out_count > 0) {
-			perror("Could not allocate output buffers");
-			*result = AEE_ENOMEMORY;
-			return 1;
-		}
+	*returned = alloc_outbufs4(impl->def, decoded,
+				   REMOTE_SCALARS_OUTBUFS(sc));
+	if (*returned == NULL && impl->def->n_args > 0) {
+		perror("Could not allocate output buffers");
+		*result = AEE_ENOMEMORY;
+		return 1;
 	}
 
 	*result = impl->impl(ifaces[handle]->data, decoded, *returned);
