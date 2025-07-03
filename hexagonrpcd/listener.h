@@ -22,7 +22,6 @@
 #ifndef LISTENER_H
 #define LISTENER_H
 
-#include <libhexagonrpc/fastrpc.h>
 #include <libhexagonrpc/hexagonrpc.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -30,8 +29,7 @@
 #include "iobuffer.h"
 
 struct fastrpc_function_impl {
-	const struct fastrpc_function_def_interp2 *def;
-	const struct hrpc_method_def_interp4 *def4;
+	const struct hrpc_method_def_interp4 *def;
 	uint32_t (*impl)(void *data,
 			 const struct fastrpc_io_buffer *inbufs,
 			 struct fastrpc_io_buffer *outbufs);
