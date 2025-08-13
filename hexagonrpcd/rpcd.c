@@ -292,12 +292,127 @@ err:
 	return NULL;
 }
 
+static char *read_sysfs_file(const char *path, struct stat *file_stat)
+{
+	char *contents = NULL;
+	int fd, res, n_bytes;
+
+	fd = open(path, O_RDONLY);
+	if (fd == -1)
+		return NULL;
+
+	res = fstat(fd, file_stat);
+	if (res)
+		goto close_fd;
+
+	contents = malloc(file_stat->st_size);
+	if (contents == NULL)
+		goto close_fd;
+
+	n_bytes = read(fd, contents, file_stat->st_size);
+	if (n_bytes != file_stat->st_size) {
+		free(contents);
+		contents = NULL;
+	}
+
+close_fd:
+	close(fd);
+
+	return contents;
+}
+
+/*
+ * Guesses the device's HexagonFS directory from the model and compatible
+ * properties in the device-tree.
+ *
+ * The vendor name is guessed by splitting the model property at the first
+ * space to preserve the canonical capitalization of the name.
+ *
+ * The SoC name is assumed to be part of the first property in the compatible
+ * list that starts with "qcom,".
+ *
+ * Finally, all compatible entries are split at the first , and the all
+ * right-hand sides of the entry considered as the codename.
+ *
+ * It returns the first guessed combination of all 3 for which a path exists
+ * at /usr/share/qcom/{soc}/{vendor}/{codename}.
+ * If no match is found, a null pointer is returned.
+ */
+static char *guess_device_directory_from_compatible(void)
+{
+	char *compatible_ptr, *device_name, *model_ptr, *orig_compatible_ptr,
+		*end_of_vendor_name, *vendor_name;
+	char *chipset_name = NULL;
+	char *ret = NULL;
+	struct stat compatible_stat, model_stat;
+
+	compatible_ptr = read_sysfs_file("/proc/device-tree/compatible",
+					 &compatible_stat);
+	if (compatible_ptr == NULL)
+		return NULL;
+	orig_compatible_ptr = compatible_ptr;
+
+	model_ptr = read_sysfs_file("/proc/device-tree/model", &model_stat);
+	if (model_ptr == NULL)
+		goto free_compatible;
+
+	end_of_vendor_name = strchr(model_ptr, ' ');
+	if (end_of_vendor_name == NULL)
+		end_of_vendor_name = model_ptr + model_stat.st_size - 1;
+	vendor_name = strndup(model_ptr, end_of_vendor_name - model_ptr);
+	if (vendor_name == NULL)
+		goto free_model;
+
+	while (compatible_ptr < orig_compatible_ptr + compatible_stat.st_size) {
+		if (strncmp("qcom,", compatible_ptr, sizeof("qcom,") - 1) == 0) {
+			chipset_name = compatible_ptr + sizeof("qcom,") - 1;
+			break;
+		}
+
+		compatible_ptr += strlen(compatible_ptr) + 1;
+	}
+
+	if (chipset_name == NULL)
+		goto free_model;
+
+	compatible_ptr = orig_compatible_ptr;
+	while (compatible_ptr < orig_compatible_ptr + compatible_stat.st_size) {
+		char *try_path = NULL;
+
+		device_name = strchr(compatible_ptr, ',');
+		if (device_name == NULL)
+			continue;
+		device_name += 1;
+
+		if (asprintf(&try_path, "/usr/share/qcom/%s/%s/%s",
+			     chipset_name, vendor_name, device_name) < 0)
+			goto free_model;
+
+		if (!access(try_path, R_OK)) {
+			ret = try_path;
+			break;
+		}
+
+		free(try_path);
+
+		compatible_ptr += strlen(compatible_ptr) + 1;
+	}
+
+free_model:
+	free(model_ptr);
+free_compatible:
+	free(orig_compatible_ptr);
+
+	return ret;
+}
+
 int main(int argc, char* argv[])
 {
 	char *fastrpc_node = NULL;
 	const char *device_dir = "/usr/share/qcom/";
 	const char *dsp = "";
 	const char *create_shell = NULL;
+	const char *guessed_device_dir;
 	const char **progs;
 	pid_t *pids;
 	size_t n_progs = 0;
@@ -315,6 +430,10 @@ int main(int argc, char* argv[])
 		perror("Could not list client PIDs");
 		goto err_free_progs;
 	}
+
+	guessed_device_dir = guess_device_directory_from_compatible();
+	if (guessed_device_dir != NULL)
+		device_dir = guessed_device_dir;
 
 	while ((opt = getopt(argc, argv, "c:d:f:p:R:s")) != -1) {
 		switch (opt) {
