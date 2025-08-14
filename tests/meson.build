@@ -24,5 +24,13 @@ test_hexagonfs = executable('test_hexagonfs',
   include_directories : include,
 )
 
+test_hexagonrpc = executable('test_hexagonrpc',
+  'test_hexagonrpc.c',
+  '../libhexagonrpc/hexagonrpc.c',
+  c_args : cflags,
+  include_directories : include,
+)
+
 test('iobuffer', test_iobuffer)
 test('hexagonfs', test_hexagonfs, args : [sample_file])
+test('hexagonrpc', test_hexagonrpc)
