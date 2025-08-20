@@ -16,4 +16,6 @@ subdir('libhexagonrpc')
 subdir('hexagonrpcd')
 subdir('chrecd')
 
+subdir('tools')
+
 subdir('tests')
