@@ -1,6 +1,8 @@
-json_c = dependency('json-c')
+json_c = dependency('json-c', required : false)
 
-executable('sscregistrygen',
-  'sscregistrygen.c',
-  c_args : cflags,
-  dependencies : [json_c])
+if json_c.found()
+  executable('sscregistrygen',
+    'sscregistrygen.c',
+    c_args : cflags,
+    dependencies : [json_c])
+endif
