@@ -39,6 +39,9 @@ static size_t consume_size(struct fastrpc_decoder_context *ctx,
 	ctx->size_off = (ctx->size_off + segment) % 4;
 	ctx->align = (ctx->align + segment) & 0x7;
 
+	if (ctx->size_off == 0)
+		ctx->size = le32toh(ctx->size);
+
 	return segment;
 }
 
@@ -212,7 +215,7 @@ void outbufs_encode(size_t n_outbufs, const struct fastrpc_io_buffer *outbufs,
 	size_t i;
 
 	for (i = 0; i < n_outbufs; i++) {
-		*(uint32_t *) ptr = outbufs[i].s;
+		*(uint32_t *) ptr = htole32(outbufs[i].s);
 		ptr = &ptr[4];
 		align = (align + 4) & 0x7;
 
