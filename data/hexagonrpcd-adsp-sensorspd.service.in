@@ -1,0 +1,17 @@
+[Unit]
+Description=Server for FastRPC remote procedure calls from Qualcomm ADSP - sensorspd
+Conflicts=suspend.target
+Before=suspend.target
+# This service shouldn't be run on devices with an SDSP
+ConditionPathExists=!/dev/fastrpc-sdsp
+ConditionPathExists=/dev/fastrpc-adsp
+
+[Service]
+ExecStart=@bindir@/hexagonrpcd -f /dev/fastrpc-adsp -d adsp -s
+Restart=always
+RestartSec=3
+User=fastrpc
+Group=fastrpc
+
+[Install]
+WantedBy=multi-user.target

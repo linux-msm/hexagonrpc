@@ -1,0 +1,13 @@
+[Unit]
+Description=Server for FastRPC remote procedure calls from Qualcomm SDSP
+ConditionPathExists=/dev/fastrpc-sdsp
+
+[Service]
+ExecStart=@bindir@/hexagonrpcd -f /dev/fastrpc-sdsp -d sdsp -s
+Restart=always
+RestartSec=3
+User=fastrpc
+Group=fastrpc
+
+[Install]
+WantedBy=multi-user.target
