@@ -29,13 +29,34 @@
 
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
+static void write_le32(char *buf, uint32_t value)
+{
+	*(uint32_t *)buf = htole32(value);
+}
+
+static size_t read_le(const char *buf, size_t size)
+{
+	size_t value = 0;
+
+	for (size_t i = 0; i < MIN(sizeof(size_t), size); i++)
+		value |= buf[i] << i * 8;
+
+	return value;
+}
+
+static size_t mask_bytes(size_t bytes)
+{
+	return (1ULL << bytes * 8) - 1;
+}
+
 static size_t consume_size(struct fastrpc_decoder_context *ctx,
 			   size_t len, const char *buf)
 {
 	size_t segment;
 
 	segment = MIN(len, 4 - ctx->size_off);
-	memcpy(&((char *) &ctx->size)[ctx->size_off], buf, segment);
+	ctx->size &= ~(mask_bytes(segment) << ctx->size_off * 8);
+	ctx->size |= read_le(buf, segment) << ctx->size_off * 8;
 	ctx->size_off = (ctx->size_off + segment) % 4;
 	ctx->align = (ctx->align + segment) & 0x7;
 
@@ -212,7 +233,7 @@ void outbufs_encode(size_t n_outbufs, const struct fastrpc_io_buffer *outbufs,
 	size_t i;
 
 	for (i = 0; i < n_outbufs; i++) {
-		*(uint32_t *) ptr = outbufs[i].s;
+		write_le32(ptr, outbufs[i].s);
 		ptr = &ptr[4];
 		align = (align + 4) & 0x7;
 
