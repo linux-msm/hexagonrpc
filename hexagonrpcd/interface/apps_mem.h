@@ -1,11 +1,11 @@
 /*
- * FastRPC reverse tunnel registration interface
+ * FastRPC memory mapping interface - API
  *
- * Copyright (C) 2023 The Sensor Shell Contributors
+ * Copyright (C) 2025 HexagonRPC Contributors
  *
- * This file is part of sensh.
+ * This file is part of HexagonRPC.
  *
- * Sensh is free software: you can redistribute it and/or modify
+ * HexagonRPC is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
@@ -19,11 +19,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef INTERFACE_ADSP_DEFAULT_LISTENER_DEF
-#define INTERFACE_ADSP_DEFAULT_LISTENER_DEF
+#ifndef INTERFACE_APPS_MEM_H
+#define INTERFACE_APPS_MEM_H
 
-#include <libhexagonrpc/interface.h>
+#include <libhexagonrpc/hexagonrpc.h>
 
-HEXAGONRPC_DEFINE_REMOTE_METHOD(0, adsp_default_listener_register, 0, 0, 0, 0)
+extern struct hrpc_method_def_interp4 apps_mem_request_map64_def;
 
-#endif /* INTERFACE_ADSP_DEFAULT_LISTENER_DEF */
+#endif /* INTERFACE_APPS_MEM_H */
