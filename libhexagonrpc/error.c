@@ -2,6 +2,7 @@
  * Imported FastRPC error messages
  *
  * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, The Sensor Shell Contributors. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -29,7 +30,10 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-const char *aee_strerror[] = {
+#include <errno.h>
+#include <string.h>
+
+static const char *err_tab[] = {
 	"No error",
 	"General failure",
 	"Insufficient RAM",
@@ -81,3 +85,13 @@ const char *aee_strerror[] = {
 	"A CPU exception occurred",
 	"Cannot change read-only object or parameter",
 };
+
+const char *hexagonrpc_strerror(int ret)
+{
+	if (ret == -1)
+		return strerror(errno);
+	else if (ret >= 0 && (unsigned int) ret < sizeof(err_tab) / sizeof(*err_tab))
+		return err_tab[ret];
+
+	return "Unknown error";
+}

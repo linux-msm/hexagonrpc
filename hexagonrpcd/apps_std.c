@@ -20,15 +20,15 @@
  */
 
 #include <errno.h>
+#include <libhexagonrpc/error.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "aee_error.h"
-#include "interfaces/apps_std.def"
 #include "hexagonfs.h"
+#include "interface/apps_std.h"
 #include "iobuffer.h"
 #include "listener.h"
 
