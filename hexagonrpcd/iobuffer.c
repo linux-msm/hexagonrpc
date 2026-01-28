@@ -19,6 +19,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <endian.h>
 #include <libhexagonrpc/fastrpc.h>
 #include <stdint.h>
 #include <stdio.h>
