@@ -1,5 +1,5 @@
 /*
- * CHRE client daemon entry point
+ * FastRPC remote interface handle management
  *
  * Copyright (C) 2023 The Sensor Shell Contributors
  *
@@ -19,43 +19,39 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <errno.h>
-#include <libhexagonrpc/handle.h>
-#include <libhexagonrpc/session.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
-#include "interface/chre_slpi.h"
+#include <libhexagonrpc/error.h>
+#include <libhexagonrpc/hexagonrpc.h>
+#include <libhexagonrpc/session.h>
+#include <libhexagonrpc/interface/remotectl.h>
 
-int main()
+int hexagonrpc_open(int fd, const char *name, uint32_t *hdl, size_t n_err, char *err)
 {
-	uint32_t hdl;
-	char err[256];
-	int fd, ret;
+	uint32_t dlerr;
+	int ret;
 
-	fd = hexagonrpc_fd_from_env();
-	if (fd == -1)
-		return 1;
-
-	ret = hexagonrpc_open(fd, "chre_slpi", &hdl, 256, err);
+	ret = remotectl_open(fd, strlen(name) + 1, name, hdl,
+			     n_err, err, &dlerr);
 	if (ret) {
-		fprintf(stderr, "Could not open CHRE remote interface: %s\n", err);
-		return 1;
+		strncpy(err, hexagonrpc_strerror(ret), n_err);
+		err[n_err - 1] = '\0';
+		return -1;
 	}
 
-	ret = chre_slpi_start_thread(fd, hdl);
-	if (ret) {
-		fprintf(stderr, "Could not start CHRE\n");
-		goto err;
-	}
+	/*
+	 * The error message is already in the buffer because the buffer was
+	 * directly passed as an output buffer. Simply return at this point.
+	 */
+	if (dlerr)
+		return -1;
 
-	ret = chre_slpi_wait_on_thread_exit(fd, hdl);
-	if (ret) {
-		fprintf(stderr, "Could not wait for CHRE thread\n");
-		goto err;
-	}
+	return 0;
+}
 
-err:
-	hexagonrpc_close(fd, hdl);
+void hexagonrpc_close(int fd, uint32_t hdl)
+{
+	uint32_t dlerr;
+
+	remotectl_close(fd, hdl, 0, NULL, &dlerr);
 }
