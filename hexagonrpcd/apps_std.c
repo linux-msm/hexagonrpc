@@ -120,6 +120,50 @@ static uint32_t apps_std_fread(void *data,
 	return 0;
 }
 
+static uint32_t apps_std_fwrite(void *data,
+			        const struct fastrpc_io_buffer *inbufs,
+			        struct fastrpc_io_buffer *outbufs)
+{
+	// struct apps_std_ctx *ctx = data;
+	const struct {
+		uint32_t fd;
+		uint32_t buf_size;
+	} *first_in = inbufs[0].p;
+	const uint8_t *buf = inbufs[1].p;
+	struct {
+		uint32_t written;
+		uint32_t is_eof;
+	} *first_out = outbufs[0].p;
+	ssize_t ret;
+
+	ret = 0;
+#ifdef HEXAGONRPC_VERBOSE
+	printf("write(%u, %u) -> %ld\n", first_in->fd,
+					 first_in->buf_size,
+					 ret);
+
+	printf("write() data:");
+	for (unsigned int i = 0; i < first_in->buf_size; i++)
+		printf(" 0x%x", buf[i]);
+	printf("\n");
+#endif
+
+	const uint8_t fake_buf_dir[] = {0x44, 0x49, 0x52}; // "DIR"
+	const uint8_t fake_buf_version3[] = {0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x3d, 0x33}; // "version=3"
+	if ((first_in->buf_size == 3 && memcmp(buf, fake_buf_dir, 3) == 0) ||
+		(first_in->buf_size == 9 && memcmp(buf, fake_buf_version3, 9) == 0)) {
+
+		first_out->written = first_in->buf_size;
+		first_out->is_eof = 0;
+
+		printf("WARNING: Faking successful fwrite call for \"%s\"!\n", buf);
+
+		return 0;
+	}
+
+	return AEE_EFAILED;
+}
+
 static uint32_t apps_std_fseek(void *data,
 			       const struct fastrpc_io_buffer *inbufs,
 			       struct fastrpc_io_buffer *outbufs)
@@ -167,9 +211,9 @@ static uint32_t apps_std_fopen_with_env(void *data,
 
 	rw_mode = ((const char *) inbufs[4].p)[0];
 	if (rw_mode == 'w' || rw_mode == 'a') {
-		fprintf(stderr, "Tried to open %s for writing\n",
+		fprintf(stderr, "(IGNORE LIMITATION) Tried to open %s for writing\n",
 				(const char *) inbufs[3].p);
-		return AEE_EUNSUPPORTED;
+		//return AEE_EUNSUPPORTED;
 	}
 
 	if (!strcmp(inbufs[1].p, "ADSP_LIBRARY_PATH")) {
@@ -420,7 +464,10 @@ static const struct fastrpc_function_impl apps_std_procs[] = {
 		.def = &apps_std_fread_def,
 		.impl = apps_std_fread,
 	},
-	{ .def = NULL, .impl = NULL, },
+	{
+		.def = &apps_std_fwrite_def,
+		.impl = apps_std_fwrite,
+	},
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
