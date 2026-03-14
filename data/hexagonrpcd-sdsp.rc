@@ -1,0 +1,4 @@
+service vendor.hexagonrpcd-sdsp /vendor/bin/hexagonrpcd -f /dev/fastrpc-sdsp -d sdsp -s -R /vendor/etc/hexagonrpcd-root
+    class core
+    user system
+    group system

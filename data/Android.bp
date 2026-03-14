@@ -1,0 +1,20 @@
+prebuilt_etc {
+    name: "hexagonrpcd-adsp-rootpd.rc",
+    src: "hexagonrpcd-adsp-rootpd.rc",
+    sub_dir: "init",
+    vendor: true,
+}
+
+prebuilt_etc {
+    name: "hexagonrpcd-adsp-sensorspd.rc",
+    src: "hexagonrpcd-adsp-sensorspd.rc",
+    sub_dir: "init",
+    vendor: true,
+}
+
+prebuilt_etc {
+    name: "hexagonrpcd-sdsp.rc",
+    src: "hexagonrpcd-sdsp.rc",
+    sub_dir: "init",
+    vendor: true,
+}
