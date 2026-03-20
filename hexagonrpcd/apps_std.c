@@ -422,6 +422,34 @@ static uint32_t apps_std_stat(void *data,
 	return 0;
 }
 
+static uint32_t apps_std_fopen_with_env_fd(void *data,
+					   const struct fastrpc_io_buffer *inbufs,
+					   struct fastrpc_io_buffer *outbufs)
+{
+	//struct apps_std_ctx *ctx = data;
+	struct {
+		uint32_t fd;
+		uint32_t len;
+	} *first_out = outbufs[0].p;
+	//uint32_t *mid = inbufs[0].p;
+
+	// The name and environment variable must also be NULL-terminated
+	if (((const char *) inbufs[1].p)[inbufs[1].s - 1] != 0
+	 || ((const char *) inbufs[2].p)[inbufs[2].s - 1] != 0
+	 || ((const char *) inbufs[3].p)[inbufs[3].s - 1] != 0
+	 || ((const char *) inbufs[4].p)[inbufs[4].s - 1] != 0)
+		return AEE_EBADPARM;
+
+	printf("fopen_with_env_fd envvarname=%s delim=%s name=%s mode=%s\n", (const char *) inbufs[1].p, (const char *) inbufs[2].p, (const char *) inbufs[3].p, (const char *) inbufs[4].p);
+
+	// FIXME
+	printf("WARNING: fopen_with_env_fd stub!\n");
+	first_out->fd = 99;
+	first_out->len = 42;
+
+	return 0;
+}
+
 struct fastrpc_interface *fastrpc_apps_std_init(struct hexagonfs_dirent *root)
 {
 	struct fastrpc_interface *iface;
@@ -542,10 +570,18 @@ static const struct fastrpc_function_impl apps_std_procs[] = {
 		.def = &apps_std_stat_def,
 		.impl = apps_std_stat,
 	},
+	{ .def = NULL, .impl = NULL, },
+	{ .def = NULL, .impl = NULL, },
+	{ .def = NULL, .impl = NULL, },
+	{ .def = NULL, .impl = NULL, },
+	{
+		.def = &apps_std_fopen_with_env_fd_def,
+		.impl = apps_std_fopen_with_env_fd,
+	},
 };
 
 const struct fastrpc_interface apps_std_interface = {
 	.name = "apps_std",
-	.n_procs = 32,
+	.n_procs = 37,
 	.procs = apps_std_procs,
 };

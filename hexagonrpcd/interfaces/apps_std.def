@@ -36,5 +36,6 @@ HEXAGONRPC_DEFINE_REMOTE_METHOD(26, apps_std_opendir, 0, 1, 2, 0)
 HEXAGONRPC_DEFINE_REMOTE_METHOD(27, apps_std_closedir, 2, 0, 0, 0)
 HEXAGONRPC_DEFINE_REMOTE_METHOD(28, apps_std_readdir, 2, 0, 66, 0)
 HEXAGONRPC_DEFINE_REMOTE_METHOD(31, apps_std_stat, 1, 1, 24, 0)
+HEXAGONRPC_DEFINE_REMOTE_METHOD(36, apps_std_fopen_with_env_fd, 1, 4, 2, 0)
 
 #endif /* INTERFACE_APPS_STD_DEF */
