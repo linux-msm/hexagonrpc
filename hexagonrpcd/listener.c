@@ -233,6 +233,22 @@ static int invoke_requested_procedure(size_t n_ifaces,
 		return 1;
 	}
 
+	/*
+	 * Methods >= 31 are specified with method == 31 and have the actual
+	 * method in the first uint32_t parameter.
+	 */
+	if (method == 31) { // "mid" handling
+		const struct fastrpc_io_buffer *inbufs = decoded;
+		if (REMOTE_SCALARS_INBUFS(sc) < 1 || inbufs[0].s < 4) { // TODO: Is this sufficient?
+			fprintf(stderr, "Got invalid inbufs in 'mid' handling\n");
+			*result = AEE_EBADPARM;
+			return 1;
+		}
+		uint32_t *mid = inbufs[0].p;
+		printf("mid=%u\n", *mid);
+		method = *mid;
+	}
+
 	if (method >= ifaces[handle]->n_procs) {
 		fprintf(stderr, "Unsupported method: %u (%08x)\n", method, sc);
 		*result = AEE_EUNSUPPORTED;
@@ -254,7 +270,8 @@ static int invoke_requested_procedure(size_t n_ifaces,
 
 	if (REMOTE_SCALARS_INBUFS(sc) != in_count
 	 || REMOTE_SCALARS_OUTBUFS(sc) != out_count) {
-		fprintf(stderr, "Unexpected buffer count: %08x\n", sc);
+		fprintf(stderr, "Unexpected buffer count for method %u: %08x (in: %d vs %d, out: %d vs %d)\n",
+			method, sc, REMOTE_SCALARS_INBUFS(sc), in_count, REMOTE_SCALARS_OUTBUFS(sc), out_count);
 		*result = AEE_EBADPARM;
 		return 1;
 	}
