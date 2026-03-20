@@ -252,6 +252,33 @@ static uint32_t apps_std_fopen_with_env(void *data,
 	return 0;
 }
 
+static uint32_t apps_std_fremove(void *data,
+				 const struct fastrpc_io_buffer *inbufs,
+				 struct fastrpc_io_buffer *outbufs)
+{
+	// struct apps_std_ctx *ctx = data;
+	int ret;
+
+	// The name must be NULL-terminated
+	if (((const char *) inbufs[1].p)[inbufs[1].s - 1] != 0)
+		return AEE_EBADPARM;
+
+	ret = 0;
+	printf("WARNING: Mocking successful fremove!\n");
+	if (ret < 0) {
+		fprintf(stderr, "Could not remove %s: %s\n",
+				(const char *) inbufs[1].p,
+				strerror(-ret));
+		return AEE_EFAILED;
+	}
+
+#ifdef HEXAGONRPC_VERBOSE
+	printf("fremove(%s) -> %d\n", (const char *) inbufs[1].p, ret);
+#endif
+
+	return 0;
+}
+
 static uint32_t apps_std_opendir(void *data,
 				 const struct fastrpc_io_buffer *inbufs,
 				 struct fastrpc_io_buffer *outbufs)
@@ -492,7 +519,10 @@ static const struct fastrpc_function_impl apps_std_procs[] = {
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
+	{
+		.def = &apps_std_fremove_def,
+		.impl = apps_std_fremove,
+	},
 	{ .def = NULL, .impl = NULL, },
 	{
 		.def = &apps_std_opendir_def,
