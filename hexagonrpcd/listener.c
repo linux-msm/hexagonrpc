@@ -254,7 +254,10 @@ static int invoke_requested_procedure(size_t n_ifaces,
 
 	if (REMOTE_SCALARS_INBUFS(sc) != in_count
 	 || REMOTE_SCALARS_OUTBUFS(sc) != out_count) {
-		fprintf(stderr, "Unexpected buffer count: %08x\n", sc);
+		fprintf(stderr, "Unexpected buffer count for method %u: %08x (in: %d vs %d, out: %d vs %d)\n",
+			method, sc,
+			REMOTE_SCALARS_INBUFS(sc), in_count,
+			REMOTE_SCALARS_OUTBUFS(sc), out_count);
 		*result = AEE_EBADPARM;
 		return 1;
 	}
