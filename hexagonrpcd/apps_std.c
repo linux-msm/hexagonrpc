@@ -422,6 +422,25 @@ static uint32_t apps_std_stat(void *data,
 	return 0;
 }
 
+static uint32_t apps_std_fclose_fd(void *data,
+				   const struct fastrpc_io_buffer *inbufs,
+				   struct fastrpc_io_buffer *outbufs)
+{
+	//struct apps_std_ctx *ctx = data;
+	const struct {
+		uint32_t mid;
+		uint32_t fd;
+	} *first_in = inbufs[0].p;
+
+#ifdef HEXAGONRPC_VERBOSE
+	printf("close_fd(%u)\n", first_in->fd);
+#endif
+
+	// FIXME
+
+	return 0;
+}
+
 static uint32_t apps_std_fopen_with_env_fd(void *data,
 					   const struct fastrpc_io_buffer *inbufs,
 					   struct fastrpc_io_buffer *outbufs)
@@ -573,7 +592,10 @@ static const struct fastrpc_function_impl apps_std_procs[] = {
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
 	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
+	{
+		.def = &apps_std_fclose_fd_def,
+		.impl = apps_std_fclose_fd,
+	},
 	{
 		.def = &apps_std_fopen_with_env_fd_def,
 		.impl = apps_std_fopen_with_env_fd,
