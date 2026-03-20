@@ -197,9 +197,10 @@ static uint32_t apps_std_fopen_with_env(void *data,
 	}
 
 #ifdef HEXAGONRPC_VERBOSE
-	printf("openat($%s, %s) -> %d\n", (const char *) inbufs[1].p,
-					  (const char *) inbufs[3].p,
-					  fd);
+	printf("openat($%s, %s, %c) -> %d\n", (const char *) inbufs[1].p,
+					      (const char *) inbufs[3].p,
+					      rw_mode,
+					      fd);
 #endif
 
 	*out = fd;
