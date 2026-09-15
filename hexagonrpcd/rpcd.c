@@ -77,7 +77,8 @@ static void print_usage(const char *argv0)
 	       "\t-f DEVICE\tFastRPC device node to attach to\n"
 	       "\t-p PROGRAM\tRun client program with shared file descriptor\n"
 	       "\t-R DIR\t\tRoot directory of served files (default: /usr/share/qcom/)\n"
-	       "\t-s\t\tAttach to sensorspd\n");
+	       "\t-s\t\tAttach to sensorspd\n"
+	       "\t-h\t\tPrint help and exit\n");
 }
 
 static int create_shell_pd(int fd, const char *create_shell)
@@ -372,7 +373,7 @@ int main(int argc, char* argv[])
 	if (guessed_device_dir != NULL)
 		device_dir = guessed_device_dir;
 
-	while ((opt = getopt(argc, argv, "c:d:f:p:R:s")) != -1) {
+	while ((opt = getopt(argc, argv, "c:d:f:p:R:sh")) != -1) {
 		switch (opt) {
 			case 'c':
 				create_shell = optarg;
@@ -392,6 +393,10 @@ int main(int argc, char* argv[])
 				break;
 			case 's':
 				attach_sns = true;
+				break;
+			case 'h':
+				print_usage(argv[0]);
+				goto free_pids;
 				break;
 			default:
 				print_usage(argv[0]);
@@ -438,6 +443,7 @@ int main(int argc, char* argv[])
 	terminate_clients(n_progs, pids);
 
 	close(fd);
+free_pids:
 	free(pids);
 	free(progs);
 
