@@ -109,6 +109,48 @@ static struct hexagonfs_dirent *hfs_map_or_empty(const char *name, const char *p
  *
  * TODO: Make this free()-able with reference counts
  */
+#define SENSORS_PERSIST		"/sensors/persist/"
+
+/*
+ * The sensor framework does not only read its registry: while it initialises
+ * it removes and rewrites entries below /persist/sensors/registry/registry
+ * and writes a temporary file next to that directory
+ * (/persist/sensors/registry/fstempfile, renamed into the registry). With
+ * PREFIX/sensors/persist/ present, that directory backs the whole of
+ * /persist/sensors/registry, its registry/ subdirectory being the registry;
+ * otherwise the parent stays virtual and PREFIX/sensors/registry/ is the
+ * registry, as before.
+ */
+static struct hexagonfs_dirent *build_persist_dir(const char *prefix,
+						  const char *sns_reg)
+{
+	struct stat st;
+	char *sns_persist;
+
+	sns_persist = malloc(strlen(prefix) + strlen(SENSORS_PERSIST) + 1);
+	if (sns_persist != NULL) {
+		strcpy(sns_persist, prefix);
+		strcat(sns_persist, SENSORS_PERSIST);
+
+		if (stat(sns_persist, &st) == 0 && S_ISDIR(st.st_mode))
+			return hfs_mkdir("persist", 1,
+					hfs_mkdir("sensors", 1,
+						hfs_map("registry", sns_persist)
+					)
+				);
+
+		free(sns_persist);
+	}
+
+	return hfs_mkdir("persist", 1,
+			hfs_mkdir("sensors", 1,
+				hfs_mkdir("registry", 1,
+					hfs_map("registry", sns_reg)
+				)
+			)
+		);
+}
+
 struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
 {
 	char *acdbdata, *dsp_libs, *sns_cfg, *sns_reg, *sns_reg_config, *socinfo;
@@ -160,13 +202,7 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
 	 * Some platforms need this in / and some need it in /mnt/vendor. Form
 	 * a hard link between both locations.
 	 */
-	persist_dir = hfs_mkdir("persist", 1,
-				hfs_mkdir("sensors", 1,
-					hfs_mkdir("registry", 1,
-						hfs_map("registry", sns_reg)
-					)
-				)
-		      );
+	persist_dir = build_persist_dir(prefix, sns_reg);
 
 	/*
 	 * Some platforms need vendor in / and some need it in /system. Form
