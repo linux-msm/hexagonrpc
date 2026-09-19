@@ -42,6 +42,17 @@ struct hexagonfs_file_ops {
 	ssize_t (*read)(struct hexagonfs_fd *fd, size_t size, void *ptr);
 	int (*stat)(struct hexagonfs_fd *fd, struct stat *stats);
 	int (*seek)(struct hexagonfs_fd *fd, off_t off, int whence);
+	/* Writable backends only (physical directories): create/open NAME for reading and writing below DIR
+	 * (FLAGS: O_TRUNC, O_APPEND), write, truncate, unlink, rename within the same backend. */
+	int (*create)(struct hexagonfs_fd *dir,
+		      const char *name,
+		      int flags,
+		      struct hexagonfs_fd **out);
+	ssize_t (*write)(struct hexagonfs_fd *fd, size_t size, const void *ptr);
+	int (*truncate)(struct hexagonfs_fd *fd, off_t len);
+	int (*unlink)(struct hexagonfs_fd *dir, const char *name);
+	int (*rename)(struct hexagonfs_fd *dir, const char *name,
+		      struct hexagonfs_fd *newdir, const char *newname);
 };
 
 struct hexagonfs_dirent {
@@ -77,5 +88,10 @@ int hexagonfs_fstat(struct hexagonfs_fd **fds, int fileno, struct stat *stats);
 int hexagonfs_lseek(struct hexagonfs_fd **fds, int fileno, off_t pos, int whence);
 int hexagonfs_readdir(struct hexagonfs_fd **fds, int fileno, size_t size, char *name);
 ssize_t hexagonfs_read(struct hexagonfs_fd **fds, int fileno, size_t size, void *ptr);
+int hexagonfs_create(struct hexagonfs_fd **fds, int rootfd, int dirfd, const char *name, int flags);
+ssize_t hexagonfs_write(struct hexagonfs_fd **fds, int fileno, size_t size, const void *ptr);
+int hexagonfs_ftruncate(struct hexagonfs_fd **fds, int fileno, off_t len);
+int hexagonfs_unlink(struct hexagonfs_fd **fds, int rootfd, int dirfd, const char *name);
+int hexagonfs_rename(struct hexagonfs_fd **fds, int rootfd, int dirfd, const char *name, const char *newname);
 
 #endif

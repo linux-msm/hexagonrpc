@@ -22,6 +22,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -126,6 +127,116 @@ err:
 	return ret;
 }
 
+/* The physical directory behind a mapped file descriptor, or NULL for any other backend. */
+static struct mapped_ctx *mapped_ctx_of(struct hexagonfs_fd *fd)
+{
+	if (fd->ops != &hexagonfs_mapped_ops
+	 && fd->ops != &hexagonfs_mapped_or_empty_ops
+	 && fd->ops != &hexagonfs_mapped_sysfs_ops)
+		return NULL;
+
+	return fd->data;
+}
+
+static int mapped_create(struct hexagonfs_fd *dir,
+			 const char *name,
+			 int flags,
+			 struct hexagonfs_fd **out)
+{
+	struct mapped_ctx *dir_ctx = mapped_ctx_of(dir);
+	struct hexagonfs_fd *fd;
+	struct mapped_ctx *ctx;
+	int ret;
+
+	if (dir_ctx == NULL)
+		return -ENOSYS;
+
+	ctx = malloc(sizeof(struct mapped_ctx));
+	if (ctx == NULL)
+		return -ENOMEM;
+
+	fd = malloc(sizeof(struct hexagonfs_fd));
+	if (fd == NULL) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	ctx->fd = openat(dir_ctx->fd, name,
+			 O_RDWR | O_CREAT | O_CLOEXEC | (flags & (O_TRUNC | O_APPEND)),
+			 0644);
+	if (ctx->fd == -1) {
+		ret = -errno;
+		goto err_free_fd;
+	}
+
+	ctx->dir = NULL;
+
+	fd->is_assigned = false;
+	fd->up = dir;
+	fd->ops = &hexagonfs_mapped_ops;
+	fd->data = ctx;
+
+	*out = fd;
+
+	return 0;
+
+err_free_fd:
+	free(fd);
+err:
+	free(ctx);
+	return ret;
+}
+
+static ssize_t mapped_write(struct hexagonfs_fd *fd, size_t size, const void *in)
+{
+	struct mapped_ctx *ctx = fd->data;
+	ssize_t ret;
+
+	ret = write(ctx->fd, in, size);
+	if (ret < 0)
+		return -errno;
+
+	return ret;
+}
+
+static int mapped_truncate(struct hexagonfs_fd *fd, off_t len)
+{
+	struct mapped_ctx *ctx = fd->data;
+
+	if (ftruncate(ctx->fd, len))
+		return -errno;
+
+	return 0;
+}
+
+static int mapped_unlink(struct hexagonfs_fd *dir, const char *name)
+{
+	struct mapped_ctx *dir_ctx = mapped_ctx_of(dir);
+
+	if (dir_ctx == NULL)
+		return -ENOSYS;
+
+	if (unlinkat(dir_ctx->fd, name, 0))
+		return -errno;
+
+	return 0;
+}
+
+static int mapped_rename(struct hexagonfs_fd *dir, const char *name,
+			 struct hexagonfs_fd *newdir, const char *newname)
+{
+	struct mapped_ctx *dir_ctx = mapped_ctx_of(dir);
+	struct mapped_ctx *newdir_ctx = mapped_ctx_of(newdir);
+
+	if (dir_ctx == NULL || newdir_ctx == NULL)
+		return -ENOSYS;
+
+	if (renameat(dir_ctx->fd, name, newdir_ctx->fd, newname))
+		return -errno;
+
+	return 0;
+}
+
 static ssize_t mapped_read(struct hexagonfs_fd *fd, size_t size, void *out)
 {
 	struct mapped_ctx *ctx = fd->data;
@@ -199,11 +310,11 @@ static int mapped_stat(struct hexagonfs_fd *fd, struct stat *stats)
 
 	if (phys.st_mode & S_IFDIR) {
 		stats->st_mode = S_IFDIR
-			       | S_IRUSR | S_IXUSR
+			       | S_IRUSR | S_IWUSR | S_IXUSR
 			       | S_IRGRP | S_IXGRP
 			       | S_IROTH | S_IXOTH;
 	} else {
-		stats->st_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH;
+		stats->st_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 	}
 
 	stats->st_atim.tv_sec = phys.st_atim.tv_sec;
@@ -262,6 +373,34 @@ static int mapped_or_empty_readdir(struct hexagonfs_fd *fd,
 		out[0] = '\0';
 		return 0;
 	}
+}
+
+static int mapped_or_empty_create(struct hexagonfs_fd *dir,
+				  const char *name,
+				  int flags,
+				  struct hexagonfs_fd **out)
+{
+	if (dir->data)
+		return mapped_create(dir, name, flags, out);
+	else
+		return -ENOENT;
+}
+
+static int mapped_or_empty_unlink(struct hexagonfs_fd *dir, const char *name)
+{
+	if (dir->data)
+		return mapped_unlink(dir, name);
+	else
+		return -ENOENT;
+}
+
+static int mapped_or_empty_rename(struct hexagonfs_fd *dir, const char *name,
+				  struct hexagonfs_fd *newdir, const char *newname)
+{
+	if (dir->data)
+		return mapped_rename(dir, name, newdir, newname);
+	else
+		return -ENOENT;
 }
 
 static int mapped_or_empty_seek(struct hexagonfs_fd *fd, off_t off, int whence)
@@ -330,6 +469,11 @@ struct hexagonfs_file_ops hexagonfs_mapped_ops = {
 	.readdir = mapped_readdir,
 	.seek = mapped_seek,
 	.stat = mapped_stat,
+	.create = mapped_create,
+	.write = mapped_write,
+	.truncate = mapped_truncate,
+	.unlink = mapped_unlink,
+	.rename = mapped_rename,
 };
 
 struct hexagonfs_file_ops hexagonfs_mapped_or_empty_ops = {
@@ -340,6 +484,11 @@ struct hexagonfs_file_ops hexagonfs_mapped_or_empty_ops = {
 	.readdir = mapped_or_empty_readdir,
 	.seek = mapped_or_empty_seek,
 	.stat = mapped_or_empty_stat,
+	.create = mapped_or_empty_create,
+	.write = mapped_write,
+	.truncate = mapped_truncate,
+	.unlink = mapped_or_empty_unlink,
+	.rename = mapped_or_empty_rename,
 };
 
 struct hexagonfs_file_ops hexagonfs_mapped_sysfs_ops = {

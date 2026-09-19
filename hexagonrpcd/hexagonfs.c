@@ -277,3 +277,187 @@ int hexagonfs_fstat(struct hexagonfs_fd **fds, int fileno, struct stat *stats)
 
 	return fd->ops->stat(fd, stats);
 }
+
+/*
+ * Resolve the directory part of NAME for the operations that act on a name inside a directory (create,
+ * unlink, rename). Returns the file number of that directory and sets *BASE to the final component. When
+ * NAME has no directory part, DIRFD itself is returned and *OWNED stays false; otherwise the directory was
+ * opened here and the caller closes it.
+ */
+static int resolve_parent(struct hexagonfs_fd **fds, int rootfd, int dirfd,
+			  const char *name, const char **base, bool *owned)
+{
+	const char *slash = strrchr(name, '/');
+	char *dir;
+	int fileno;
+
+	*owned = false;
+
+	if (slash == NULL) {
+		*base = name;
+		return dirfd;
+	}
+
+	*base = slash + 1;
+
+	if (slash == name)
+		return rootfd;
+
+	dir = strndup(name, slash - name);
+	if (dir == NULL)
+		return -ENOMEM;
+
+	fileno = hexagonfs_openat(fds, rootfd, dirfd, dir);
+	free(dir);
+	if (fileno < 0)
+		return fileno;
+
+	*owned = true;
+
+	return fileno;
+}
+
+int hexagonfs_create(struct hexagonfs_fd **fds, int rootfd, int dirfd, const char *name, int flags)
+{
+	struct hexagonfs_fd *dir, *fd;
+	const char *base;
+	bool owned;
+	int parent, ret;
+
+	parent = resolve_parent(fds, rootfd, dirfd, name, &base, &owned);
+	if (parent < 0)
+		return parent;
+
+	dir = fds[parent];
+	if (dir == NULL) {
+		ret = -EBADF;
+		goto out;
+	}
+
+	if (*base == '\0') {
+		ret = -EISDIR;
+		goto out;
+	}
+
+	if (dir->ops->create == NULL) {
+		ret = -ENOSYS;
+		goto out;
+	}
+
+	ret = dir->ops->create(dir, base, flags, &fd);
+	if (ret)
+		goto out;
+
+	/* The file stands on its own: its directory may be closed before it. */
+	fd->up = NULL;
+
+	ret = allocate_file_number(fds, fd);
+	if (ret < 0)
+		destroy_file_descriptor(fd);
+
+out:
+	if (owned)
+		hexagonfs_close(fds, parent);
+
+	return ret;
+}
+
+ssize_t hexagonfs_write(struct hexagonfs_fd **fds, int fileno, size_t size, const void *ptr)
+{
+	struct hexagonfs_fd *fd;
+
+	if (fileno < 0 || fileno >= HEXAGONFS_MAX_FD)
+		return -EBADF;
+
+	fd = fds[fileno];
+	if (fd == NULL)
+		return -EBADF;
+
+	if (fd->ops->write == NULL)
+		return -ENOSYS;
+
+	return fd->ops->write(fd, size, ptr);
+}
+
+int hexagonfs_ftruncate(struct hexagonfs_fd **fds, int fileno, off_t len)
+{
+	struct hexagonfs_fd *fd;
+
+	if (fileno < 0 || fileno >= HEXAGONFS_MAX_FD)
+		return -EBADF;
+
+	fd = fds[fileno];
+	if (fd == NULL)
+		return -EBADF;
+
+	if (fd->ops->truncate == NULL)
+		return -ENOSYS;
+
+	return fd->ops->truncate(fd, len);
+}
+
+int hexagonfs_unlink(struct hexagonfs_fd **fds, int rootfd, int dirfd, const char *name)
+{
+	struct hexagonfs_fd *dir;
+	const char *base;
+	bool owned;
+	int parent, ret;
+
+	parent = resolve_parent(fds, rootfd, dirfd, name, &base, &owned);
+	if (parent < 0)
+		return parent;
+
+	dir = fds[parent];
+	if (dir == NULL) {
+		ret = -EBADF;
+	} else if (*base == '\0') {
+		ret = -EISDIR;
+	} else if (dir->ops->unlink == NULL) {
+		ret = -ENOSYS;
+	} else {
+		ret = dir->ops->unlink(dir, base);
+	}
+
+	if (owned)
+		hexagonfs_close(fds, parent);
+
+	return ret;
+}
+
+int hexagonfs_rename(struct hexagonfs_fd **fds, int rootfd, int dirfd, const char *name, const char *newname)
+{
+	struct hexagonfs_fd *dir, *newdir;
+	const char *base, *newbase;
+	bool owned, newowned = false;
+	int parent, newparent = -1, ret;
+
+	parent = resolve_parent(fds, rootfd, dirfd, name, &base, &owned);
+	if (parent < 0)
+		return parent;
+
+	newparent = resolve_parent(fds, rootfd, dirfd, newname, &newbase, &newowned);
+	if (newparent < 0) {
+		ret = newparent;
+		goto out;
+	}
+
+	dir = fds[parent];
+	newdir = fds[newparent];
+	if (dir == NULL || newdir == NULL) {
+		ret = -EBADF;
+	} else if (*base == '\0' || *newbase == '\0') {
+		ret = -EISDIR;
+	} else if (dir->ops->rename == NULL) {
+		ret = -ENOSYS;
+	} else {
+		ret = dir->ops->rename(dir, base, newdir, newbase);
+	}
+
+out:
+	if (newowned)
+		hexagonfs_close(fds, newparent);
+	if (owned)
+		hexagonfs_close(fds, parent);
+
+	return ret;
+}
