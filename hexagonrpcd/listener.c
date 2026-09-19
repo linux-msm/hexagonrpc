@@ -25,6 +25,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "interface/adsp_listener.h"
 #include "iobuffer.h"
@@ -416,6 +418,55 @@ err:
 	return NULL;
 }
 
+/*
+ * adsp_listener_next2 inlines at most this many bytes of a request's input
+ * buffers and reports the full length. A longer request (the sensor
+ * framework writing a file of tens of kilobytes) is completed with
+ * adsp_listener_get_in_bufs2 from that offset, as Qualcomm's listener does.
+ */
+#define LISTENER_INLINE_INBUFS 256
+#define LISTENER_MAX_INBUFS (16 * 1024 * 1024)
+
+static int fetch_large_inbufs(int fd, uint32_t rctx, uint32_t inbufs_len,
+			      const char *head, char **out)
+{
+	uint32_t rest = inbufs_len - LISTENER_INLINE_INBUFS;
+	uint32_t got = 0;
+	char *buf;
+	int ret;
+
+	if (inbufs_len > LISTENER_MAX_INBUFS) {
+		fprintf(stderr, "Refusing %" PRIu32 " bytes of input buffers\n",
+			inbufs_len);
+		return -1;
+	}
+
+	buf = malloc(inbufs_len);
+	if (buf == NULL) {
+		perror("Could not allocate large input buffers");
+		return -1;
+	}
+
+	memcpy(buf, head, LISTENER_INLINE_INBUFS);
+
+	ret = adsp_listener_get_in_bufs2(fd, rctx, LISTENER_INLINE_INBUFS,
+					 &got, rest,
+					 buf + LISTENER_INLINE_INBUFS);
+	if (ret) {
+		if (ret == -1)
+			perror("Could not fetch large input buffers");
+		else
+			fprintf(stderr, "Could not fetch large input buffers: %d\n", ret);
+
+		free(buf);
+		return -1;
+	}
+
+	*out = buf;
+
+	return 0;
+}
+
 static int return_for_next_invoke(int fd,
 				  uint32_t result,
 				  uint32_t *rctx,
@@ -425,8 +476,10 @@ static int return_for_next_invoke(int fd,
 				  struct fastrpc_io_buffer **decoded)
 {
 	struct fastrpc_decoder_context *ctx;
-	char inbufs[256];
+	char inbufs[LISTENER_INLINE_INBUFS];
 	char *outbufs = NULL;
+	char *large = NULL;
+	const char *src;
 	uint32_t inbufs_len;
 	uint32_t outbufs_len;
 	int ret;
@@ -447,7 +500,7 @@ static int return_for_next_invoke(int fd,
 				  *rctx, result,
 				  outbufs_len, outbufs,
 				  rctx, handle, sc,
-				  &inbufs_len, 256, inbufs);
+				  &inbufs_len, LISTENER_INLINE_INBUFS, inbufs);
 	if (ret) {
 		if (ret == -1)
 			perror("Could not fetch next FastRPC message");
@@ -457,36 +510,68 @@ static int return_for_next_invoke(int fd,
 		goto err_free_outbufs;
 	}
 
-	if (inbufs_len > 256) {
-		fprintf(stderr, "Large (>256B) input buffers aren't implemented\n");
-		ret = -1;
-		goto err_free_outbufs;
+	src = inbufs;
+	if (inbufs_len > LISTENER_INLINE_INBUFS) {
+		ret = fetch_large_inbufs(fd, *rctx, inbufs_len, inbufs, &large);
+		if (ret)
+			goto err_free_outbufs;
+
+		src = large;
 	}
 
 	ctx = inbuf_decode_start(*sc);
 	if (!ctx) {
 		perror("Could not start decoding");
 		ret = -1;
-		goto err_free_outbufs;
+		goto err_free_large;
 	}
 
-	ret = inbuf_decode(ctx, inbufs_len, inbufs);
+	ret = inbuf_decode(ctx, inbufs_len, src);
 	if (ret) {
 		perror("Could not decode");
-		goto err_free_outbufs;
+		goto err_free_large;
 	}
 
 	if (!inbuf_decode_is_complete(ctx)) {
 		fprintf(stderr, "Expected more input buffers\n");
 		ret = -1;
-		goto err_free_outbufs;
+		goto err_free_large;
 	}
 
 	*decoded = inbuf_decode_finish(ctx);
 
+err_free_large:
+	free(large);
 err_free_outbufs:
 	free(outbufs);
 	return ret;
+}
+
+/*
+ * A request this server cannot serve is answered with an error and empty
+ * output buffers, so that the DSP sees a failed call rather than a vanished
+ * listener; the DSP-side sensor framework retries or continues on an error
+ * but aborts without the answer. Returns 1 only when even that answer cannot
+ * be built.
+ */
+static int decline_request(uint32_t sc, uint32_t error, uint32_t *result,
+			   struct fastrpc_io_buffer **returned)
+{
+	uint8_t n_outbufs = REMOTE_SCALARS_OUTBUFS(sc);
+
+	*result = error;
+	*returned = NULL;
+
+	if (n_outbufs == 0)
+		return 0;
+
+	*returned = calloc(n_outbufs, sizeof(**returned));
+	if (*returned == NULL) {
+		perror("Could not allocate empty output buffers");
+		return 1;
+	}
+
+	return 0;
 }
 
 static int invoke_requested_procedure(size_t n_ifaces,
@@ -508,51 +593,44 @@ static int invoke_requested_procedure(size_t n_ifaces,
 		method = *(const uint32_t *) decoded[0].p;
 	} else {
 		fprintf(stderr, "Expected extended method ID, but got none\n");
-		*result = AEE_EBADPARM;
-		return 1;
+		return decline_request(sc, AEE_EBADPARM, result, returned);
 	}
 
 	if (sc & 0xff) {
 		fprintf(stderr, "Handles are not supported, but got %u in, %u out\n",
 				(sc & 0xf0) >> 4, sc & 0xf);
-		*result = AEE_EBADPARM;
-		return 1;
+		return decline_request(sc, AEE_EBADPARM, result, returned);
 	}
 
 	if (handle >= n_ifaces) {
 		fprintf(stderr, "Unsupported handle: %u\n", handle);
-		*result = AEE_EUNSUPPORTED;
-		return 1;
+		return decline_request(sc, AEE_EUNSUPPORTED, result, returned);
 	}
 
 	if (method >= ifaces[handle]->n_procs) {
 		fprintf(stderr, "Unsupported method: %u (%08x)\n", method, sc);
-		*result = AEE_EUNSUPPORTED;
-		return 1;
+		return decline_request(sc, AEE_EUNSUPPORTED, result, returned);
 	}
 
 	impl = &ifaces[handle]->procs[method];
 
 	if (impl->def == NULL || impl->impl == NULL) {
 		fprintf(stderr, "Unsupported method: %u (%08x)\n", method, sc);
-		*result = AEE_EUNSUPPORTED;
-		return 1;
+		return decline_request(sc, AEE_EUNSUPPORTED, result, returned);
 	}
 
 	ret = count_sizes4(impl->def, REMOTE_SCALARS_INBUFS(sc),
 			   REMOTE_SCALARS_OUTBUFS(sc), decoded);
 	if (ret) {
 		fprintf(stderr, "Method invoked with less arguments than expected\n");
-		*result = AEE_EBADPARM;
-		return 1;
+		return decline_request(sc, AEE_EBADPARM, result, returned);
 	}
 
 	*returned = alloc_outbufs4(impl->def, decoded,
 				   REMOTE_SCALARS_OUTBUFS(sc));
 	if (*returned == NULL && impl->def->n_args > 0) {
 		perror("Could not allocate output buffers");
-		*result = AEE_ENOMEMORY;
-		return 1;
+		return decline_request(sc, AEE_ENOMEMORY, result, returned);
 	}
 
 	*result = impl->impl(ifaces[handle]->data, decoded, *returned);
