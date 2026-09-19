@@ -24,16 +24,22 @@
 
 #include <libhexagonrpc/hexagonrpc.h>
 
+extern struct hrpc_method_def_interp4 apps_std_fopen_def;
 extern struct hrpc_method_def_interp4 apps_std_freopen_def;
 extern struct hrpc_method_def_interp4 apps_std_fflush_def;
 extern struct hrpc_method_def_interp4 apps_std_fclose_def;
 extern struct hrpc_method_def_interp4 apps_std_fread_def;
+extern struct hrpc_method_def_interp4 apps_std_fwrite_def;
 extern struct hrpc_method_def_interp4 apps_std_fseek_def;
 extern struct hrpc_method_def_interp4 apps_std_fopen_with_env_def;
+extern struct hrpc_method_def_interp4 apps_std_fsync_def;
+extern struct hrpc_method_def_interp4 apps_std_fremove_def;
 extern struct hrpc_method_def_interp4 apps_std_opendir_def;
 extern struct hrpc_method_def_interp4 apps_std_closedir_def;
 extern struct hrpc_method_def_interp4 apps_std_readdir_def;
 extern struct hrpc_method_def_interp4 apps_std_mkdir_def;
 extern struct hrpc_method_def_interp4 apps_std_stat_def;
+extern struct hrpc_method_def_interp4 apps_std_ftrunc_def;
+extern struct hrpc_method_def_interp4 apps_std_frename_def;
 
 #endif /* INTERFACE_APPS_STD_H */

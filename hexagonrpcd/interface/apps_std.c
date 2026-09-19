@@ -22,6 +22,20 @@
 #include <stdint.h>
 #include <libhexagonrpc/hexagonrpc.h>
 
+static struct hrpc_arg_def_interp4 apps_std_fopen_args[] = {
+	{ HRPC_ARG_BLOB_SEQ, sizeof(char) },
+	{ HRPC_ARG_BLOB_SEQ, sizeof(char) },
+	{ HRPC_ARG_OUT_BLOB, sizeof(uint32_t) },
+};
+
+const struct hrpc_method_def_interp4 apps_std_fopen_def = {
+	.msg_id = 0,
+	.n_args = HRPC_ARRAY_SIZE(apps_std_fopen_args),
+	.args = apps_std_fopen_args,
+	.n_inner_types = 0,
+	.inner_types = NULL,
+};
+
 static struct hrpc_arg_def_interp4 apps_std_freopen_args[] = {
 	{ HRPC_ARG_WORD, sizeof(uint32_t) },
 	{ HRPC_ARG_OUT_BLOB, sizeof(uint32_t) },
@@ -75,6 +89,21 @@ const struct hrpc_method_def_interp4 apps_std_fread_def = {
 	.inner_types = NULL,
 };
 
+static struct hrpc_arg_def_interp4 apps_std_fwrite_args[] = {
+	{ HRPC_ARG_WORD, sizeof(uint32_t) },
+	{ HRPC_ARG_BLOB_SEQ, sizeof(char) },
+	{ HRPC_ARG_OUT_BLOB, sizeof(uint32_t) },
+	{ HRPC_ARG_OUT_BLOB, sizeof(uint32_t) },
+};
+
+const struct hrpc_method_def_interp4 apps_std_fwrite_def = {
+	.msg_id = 5,
+	.n_args = HRPC_ARRAY_SIZE(apps_std_fwrite_args),
+	.args = apps_std_fwrite_args,
+	.n_inner_types = 0,
+	.inner_types = NULL,
+};
+
 static struct hrpc_arg_def_interp4 apps_std_fseek_args[] = {
 	{ HRPC_ARG_WORD, sizeof(uint32_t) },
 	{ HRPC_ARG_WORD, sizeof(uint32_t) },
@@ -101,6 +130,30 @@ const struct hrpc_method_def_interp4 apps_std_fopen_with_env_def = {
 	.msg_id = 19,
 	.n_args = HRPC_ARRAY_SIZE(apps_std_fopen_with_env_args),
 	.args = apps_std_fopen_with_env_args,
+	.n_inner_types = 0,
+	.inner_types = NULL,
+};
+
+static struct hrpc_arg_def_interp4 apps_std_fsync_args[] = {
+	{ HRPC_ARG_WORD, sizeof(uint32_t) },
+};
+
+const struct hrpc_method_def_interp4 apps_std_fsync_def = {
+	.msg_id = 23,
+	.n_args = HRPC_ARRAY_SIZE(apps_std_fsync_args),
+	.args = apps_std_fsync_args,
+	.n_inner_types = 0,
+	.inner_types = NULL,
+};
+
+static struct hrpc_arg_def_interp4 apps_std_fremove_args[] = {
+	{ HRPC_ARG_BLOB_SEQ, sizeof(char) },
+};
+
+const struct hrpc_method_def_interp4 apps_std_fremove_def = {
+	.msg_id = 24,
+	.n_args = HRPC_ARRAY_SIZE(apps_std_fremove_args),
+	.args = apps_std_fremove_args,
 	.n_inner_types = 0,
 	.inner_types = NULL,
 };
@@ -179,6 +232,32 @@ const struct hrpc_method_def_interp4 apps_std_stat_def = {
 	.msg_id = 31,
 	.n_args = HRPC_ARRAY_SIZE(apps_std_stat_args),
 	.args = apps_std_stat_args,
+	.n_inner_types = 0,
+	.inner_types = NULL,
+};
+
+static struct hrpc_arg_def_interp4 apps_std_ftrunc_args[] = {
+	{ HRPC_ARG_WORD, sizeof(uint32_t) },
+	{ HRPC_ARG_WORD, sizeof(uint32_t) },
+};
+
+const struct hrpc_method_def_interp4 apps_std_ftrunc_def = {
+	.msg_id = 32,
+	.n_args = HRPC_ARRAY_SIZE(apps_std_ftrunc_args),
+	.args = apps_std_ftrunc_args,
+	.n_inner_types = 0,
+	.inner_types = NULL,
+};
+
+static struct hrpc_arg_def_interp4 apps_std_frename_args[] = {
+	{ HRPC_ARG_BLOB_SEQ, sizeof(char) },
+	{ HRPC_ARG_BLOB_SEQ, sizeof(char) },
+};
+
+const struct hrpc_method_def_interp4 apps_std_frename_def = {
+	.msg_id = 33,
+	.n_args = HRPC_ARRAY_SIZE(apps_std_frename_args),
+	.args = apps_std_frename_args,
 	.n_inner_types = 0,
 	.inner_types = NULL,
 };
