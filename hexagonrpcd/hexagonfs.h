@@ -42,8 +42,7 @@ struct hexagonfs_file_ops {
 	ssize_t (*read)(struct hexagonfs_fd *fd, size_t size, void *ptr);
 	int (*stat)(struct hexagonfs_fd *fd, struct stat *stats);
 	int (*seek)(struct hexagonfs_fd *fd, off_t off, int whence);
-	/* Writable backends only (physical directories): create/open NAME for reading and writing below DIR
-	 * (FLAGS: O_TRUNC, O_APPEND), write, truncate, unlink, rename within the same backend. */
+	/* Writable backends only; NULL here is reported as ENOSYS. */
 	int (*create)(struct hexagonfs_fd *dir,
 		      const char *name,
 		      int flags,

@@ -299,6 +299,13 @@ static struct fastrpc_io_buffer *alloc_outbufs4(const struct hrpc_method_def_int
 	if (out == NULL)
 		return NULL;
 
+	/*
+	 * Extended methods carry their id in the first primitive word; step
+	 * over it as count_sizes4 does.
+	 */
+	if (def->msg_id > 30)
+		prim_in = (const uint32_t *) prim_in + 1;
+
 	for (i = 0; i < def->n_args; i++) {
 		if (def->args[i].t == HRPC_ARG_OUT_BLOB
 		 || def->args[i].t == HRPC_ARG_OUT_TYPE) {
@@ -419,10 +426,9 @@ err:
 }
 
 /*
- * adsp_listener_next2 inlines at most this many bytes of a request's input
- * buffers and reports the full length. A longer request (the sensor
- * framework writing a file of tens of kilobytes) is completed with
- * adsp_listener_get_in_bufs2 from that offset, as Qualcomm's listener does.
+ * adsp_listener_next2 inlines at most this many bytes and reports the full
+ * length; the rest is fetched with adsp_listener_get_in_bufs2, as Qualcomm's
+ * listener does.
  */
 #define LISTENER_INLINE_INBUFS 256
 #define LISTENER_MAX_INBUFS (16 * 1024 * 1024)
@@ -550,9 +556,8 @@ err_free_outbufs:
 /*
  * A request this server cannot serve is answered with an error and empty
  * output buffers, so that the DSP sees a failed call rather than a vanished
- * listener; the DSP-side sensor framework retries or continues on an error
- * but aborts without the answer. Returns 1 only when even that answer cannot
- * be built.
+ * listener: the sensor framework retries or continues on an error but aborts
+ * without the answer.
  */
 static int decline_request(uint32_t sc, uint32_t error, uint32_t *result,
 			   struct fastrpc_io_buffer **returned)

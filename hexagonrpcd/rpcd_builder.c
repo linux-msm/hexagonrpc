@@ -110,37 +110,48 @@ static struct hexagonfs_dirent *hfs_map_or_empty(const char *name, const char *p
  * TODO: Make this free()-able with reference counts
  */
 #define SENSORS_PERSIST		"/sensors/persist/"
+#define SENSORS_PERSIST_REG	"/sensors/persist/registry"
 
 /*
- * The sensor framework does not only read its registry: while it initialises
- * it removes and rewrites entries below /persist/sensors/registry/registry
- * and writes a temporary file next to that directory
- * (/persist/sensors/registry/fstempfile, renamed into the registry). With
- * PREFIX/sensors/persist/ present, that directory backs the whole of
- * /persist/sensors/registry, its registry/ subdirectory being the registry;
- * otherwise the parent stays virtual and PREFIX/sensors/registry/ is the
- * registry, as before.
+ * The framework rewrites entries below /persist/sensors/registry/registry and
+ * renames a temporary file into it, so that tree has to be physical. When
+ * DIR/sensors/persist/registry exists it backs the whole of
+ * /persist/sensors/registry; otherwise the layout is as before.
  */
 static struct hexagonfs_dirent *build_persist_dir(const char *prefix,
 						  const char *sns_reg)
 {
 	struct stat st;
-	char *sns_persist;
+	char *sns_persist, *probe;
+	size_t n_prefix = strlen(prefix);
 
-	sns_persist = malloc(strlen(prefix) + strlen(SENSORS_PERSIST) + 1);
-	if (sns_persist != NULL) {
+	sns_persist = malloc(n_prefix + strlen(SENSORS_PERSIST) + 1);
+	probe = malloc(n_prefix + strlen(SENSORS_PERSIST_REG) + 1);
+
+	if (sns_persist != NULL && probe != NULL) {
 		strcpy(sns_persist, prefix);
 		strcat(sns_persist, SENSORS_PERSIST);
+		strcpy(probe, prefix);
+		strcat(probe, SENSORS_PERSIST_REG);
 
-		if (stat(sns_persist, &st) == 0 && S_ISDIR(st.st_mode))
+		/*
+		 * The registry itself has to be there, not just its parent:
+		 * mapping a persist directory that does not contain one hides
+		 * the packaged registry, and nothing can create it at runtime.
+		 */
+		if (stat(probe, &st) == 0 && S_ISDIR(st.st_mode)) {
+			free(probe);
+
 			return hfs_mkdir("persist", 1,
 					hfs_mkdir("sensors", 1,
 						hfs_map("registry", sns_persist)
 					)
 				);
-
-		free(sns_persist);
+		}
 	}
+
+	free(probe);
+	free(sns_persist);
 
 	return hfs_mkdir("persist", 1,
 			hfs_mkdir("sensors", 1,

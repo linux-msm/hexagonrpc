@@ -194,6 +194,7 @@ err:
 int hexagonfs_close(struct hexagonfs_fd **fds, int fileno)
 {
 	struct hexagonfs_fd *fd;
+	size_t i;
 
 	if (fileno < 0 || fileno >= HEXAGONFS_MAX_FD)
 		return -EBADF;
@@ -202,10 +203,19 @@ int hexagonfs_close(struct hexagonfs_fd **fds, int fileno)
 	if (fd == NULL || fd->ops == NULL)
 		return -EBADF;
 
+	fds[fileno] = NULL;
+
+	/*
+	 * ".", ".." and the search directory itself can be handed out under a
+	 * second file number: only the last reference may destroy it.
+	 */
+	for (i = 0; i < HEXAGONFS_MAX_FD; i++) {
+		if (fds[i] == fd)
+			return 0;
+	}
+
 	fd->is_assigned = false;
 	destroy_file_descriptor(fd);
-
-	fds[fileno] = NULL;
 
 	return 0;
 }
@@ -279,10 +289,8 @@ int hexagonfs_fstat(struct hexagonfs_fd **fds, int fileno, struct stat *stats)
 }
 
 /*
- * Resolve the directory part of NAME for the operations that act on a name inside a directory (create,
- * unlink, rename). Returns the file number of that directory and sets *BASE to the final component. When
- * NAME has no directory part, DIRFD itself is returned and *OWNED stays false; otherwise the directory was
- * opened here and the caller closes it.
+ * Resolve the directory part of NAME, setting *BASE to the final component.
+ * *OWNED is true when the directory was opened here and the caller closes it.
  */
 static int resolve_parent(struct hexagonfs_fd **fds, int rootfd, int dirfd,
 			  const char *name, const char **base, bool *owned)

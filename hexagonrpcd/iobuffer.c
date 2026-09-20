@@ -199,9 +199,15 @@ size_t outbufs_calculate_size(size_t n_outbufs, const struct fastrpc_io_buffer *
 	for (i = 0; i < n_outbufs; i++) {
 		size += 4;
 
-		if (size & 0x7)
-			size += 8 - (size & 0x7);
-		size += outbufs[i].s;
+		/*
+		 * outbufs_encode pads only when there is a payload; padding
+		 * an empty buffer would ship uninitialised bytes.
+		 */
+		if (outbufs[i].s) {
+			if (size & 0x7)
+				size += 8 - (size & 0x7);
+			size += outbufs[i].s;
+		}
 	}
 
 	return size;

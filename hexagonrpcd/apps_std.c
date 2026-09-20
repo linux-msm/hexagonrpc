@@ -153,11 +153,9 @@ static uint32_t apps_std_fseek(void *data,
 }
 
 /*
- * Open NAME below DIRFD the way fopen(3) would for MODE: read-only for "r",
- * otherwise (w, a, +) read-write, created if absent, truncated for "w",
- * appended for "a". The sensor framework of the Snapdragon Sensor Core
- * writes into its registry directory while it initialises and aborts the
- * whole DSP when that is refused.
+ * Open NAME below DIRFD as fopen(3) would for MODE. The Snapdragon Sensor
+ * Core writes into its registry while it initialises and takes the whole DSP
+ * down when that is refused.
  */
 static int apps_std_open_mode(struct apps_std_ctx *ctx, int dirfd,
 			      const char *name, const char *mode)
@@ -165,16 +163,17 @@ static int apps_std_open_mode(struct apps_std_ctx *ctx, int dirfd,
 	const char *m;
 	bool writing = false;
 	int flags = 0;
+	int ret;
 
 	for (m = mode; *m != '\0'; m++) {
 		switch (*m) {
 			case 'w':
 				writing = true;
-				flags |= O_TRUNC;
+				flags |= O_CREAT | O_TRUNC;
 				break;
 			case 'a':
 				writing = true;
-				flags |= O_APPEND;
+				flags |= O_CREAT | O_APPEND;
 				break;
 			case '+':
 				writing = true;
@@ -187,7 +186,17 @@ static int apps_std_open_mode(struct apps_std_ctx *ctx, int dirfd,
 	if (!writing)
 		return hexagonfs_openat(ctx->fds, ctx->rootfd, dirfd, name);
 
-	return hexagonfs_create(ctx->fds, ctx->rootfd, dirfd, name, flags);
+	ret = hexagonfs_create(ctx->fds, ctx->rootfd, dirfd, name, flags);
+
+	/*
+	 * "r+" must not create the file, and on a read-only tree the DSP is
+	 * normally only going to read it.
+	 */
+	if (ret < 0 && !(flags & O_CREAT)
+	 && (ret == -EACCES || ret == -EROFS || ret == -ENOSYS))
+		ret = hexagonfs_openat(ctx->fds, ctx->rootfd, dirfd, name);
+
+	return ret;
 }
 
 static uint32_t apps_std_fopen(void *data,
@@ -593,10 +602,18 @@ void fastrpc_apps_std_deinit(struct fastrpc_interface *iface)
 	struct apps_std_ctx *ctx = iface->data;
 	int i;
 
-	for (i = 0; i < HEXAGONFS_MAX_FD; i++) {
-		if (ctx->fds[i] != NULL)
+	/*
+	 * Destroying a descriptor walks its ->up chain, so close descendants
+	 * before the root rather than ascending from it.
+	 */
+	for (i = HEXAGONFS_MAX_FD - 1; i >= 0; i--) {
+		if (i != ctx->rootfd && ctx->fds[i] != NULL)
 			hexagonfs_close(ctx->fds, i);
 	}
+
+	if (ctx->rootfd >= 0 && ctx->rootfd < HEXAGONFS_MAX_FD
+	 && ctx->fds[ctx->rootfd] != NULL)
+		hexagonfs_close(ctx->fds, ctx->rootfd);
 
 	free(iface->data);
 	free(iface);

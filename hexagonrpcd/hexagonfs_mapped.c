@@ -162,7 +162,8 @@ static int mapped_create(struct hexagonfs_fd *dir,
 	}
 
 	ctx->fd = openat(dir_ctx->fd, name,
-			 O_RDWR | O_CREAT | O_CLOEXEC | (flags & (O_TRUNC | O_APPEND)),
+			 O_RDWR | O_CLOEXEC
+			 | (flags & (O_CREAT | O_TRUNC | O_APPEND)),
 			 0644);
 	if (ctx->fd == -1) {
 		ret = -errno;
@@ -190,13 +191,30 @@ err:
 static ssize_t mapped_write(struct hexagonfs_fd *fd, size_t size, const void *in)
 {
 	struct mapped_ctx *ctx = fd->data;
+	const char *buf = in;
+	size_t done = 0;
 	ssize_t ret;
 
-	ret = write(ctx->fd, in, size);
-	if (ret < 0)
-		return -errno;
+	/*
+	 * A short write reported as success lets the DSP rename a truncated
+	 * file into place.
+	 */
+	while (done < size) {
+		ret = write(ctx->fd, &buf[done], size - done);
+		if (ret < 0) {
+			if (errno == EINTR)
+				continue;
 
-	return ret;
+			return done ? (ssize_t) done : -errno;
+		}
+
+		if (ret == 0)
+			break;
+
+		done += ret;
+	}
+
+	return done;
 }
 
 static int mapped_truncate(struct hexagonfs_fd *fd, off_t len)
@@ -310,12 +328,19 @@ static int mapped_stat(struct hexagonfs_fd *fd, struct stat *stats)
 
 	if (phys.st_mode & S_IFDIR) {
 		stats->st_mode = S_IFDIR
-			       | S_IRUSR | S_IWUSR | S_IXUSR
+			       | S_IRUSR | S_IXUSR
 			       | S_IRGRP | S_IXGRP
 			       | S_IROTH | S_IXOTH;
 	} else {
-		stats->st_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+		stats->st_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH;
 	}
+
+	/*
+	 * Claiming a write bit the backing file lacks makes the DSP take a
+	 * write path that can only fail.
+	 */
+	if (phys.st_mode & S_IWUSR)
+		stats->st_mode |= S_IWUSR;
 
 	stats->st_atim.tv_sec = phys.st_atim.tv_sec;
 	stats->st_atim.tv_nsec = phys.st_atim.tv_nsec;
@@ -403,6 +428,23 @@ static int mapped_or_empty_rename(struct hexagonfs_fd *dir, const char *name,
 		return -ENOENT;
 }
 
+static ssize_t mapped_or_empty_write(struct hexagonfs_fd *fd, size_t size,
+				     const void *in)
+{
+	if (fd->data)
+		return mapped_write(fd, size, in);
+	else
+		return -ENOENT;
+}
+
+static int mapped_or_empty_truncate(struct hexagonfs_fd *fd, off_t len)
+{
+	if (fd->data)
+		return mapped_truncate(fd, len);
+	else
+		return -ENOENT;
+}
+
 static int mapped_or_empty_seek(struct hexagonfs_fd *fd, off_t off, int whence)
 {
 	if (fd->data)
@@ -485,8 +527,8 @@ struct hexagonfs_file_ops hexagonfs_mapped_or_empty_ops = {
 	.seek = mapped_or_empty_seek,
 	.stat = mapped_or_empty_stat,
 	.create = mapped_or_empty_create,
-	.write = mapped_write,
-	.truncate = mapped_truncate,
+	.write = mapped_or_empty_write,
+	.truncate = mapped_or_empty_truncate,
 	.unlink = mapped_or_empty_unlink,
 	.rename = mapped_or_empty_rename,
 };
