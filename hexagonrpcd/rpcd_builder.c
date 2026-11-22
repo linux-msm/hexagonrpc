@@ -113,7 +113,7 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
 {
 	char *acdbdata, *dsp_libs, *sns_cfg, *sns_reg, *sns_reg_config, *socinfo;
 	size_t n_prefix;
-	struct hexagonfs_dirent *persist_dir, *vendor_dir;
+	struct hexagonfs_dirent *persist_dir, *vendor_dir, *sns_dir;
 
 	n_prefix = strlen(prefix);
 
@@ -169,26 +169,43 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
 		      );
 
 	/*
+	 * sdm845-lg-judyln (LG G7 ThinQ) has this path hardcoded in slpi.mbn
+	 */
+	sns_dir = hfs_mkdir("sns", 1,
+			hfs_mkdir("sensors", 1,
+				hfs_mkdir("registry", 1,
+					hfs_map("registry", sns_reg)
+				)
+			)
+		  );
+
+
+	/*
 	 * Some platforms need vendor in / and some need it in /system. Form
 	 * a hard link between both locations.
 	 */
 	vendor_dir = hfs_mkdir("vendor", 1,
 				hfs_mkdir("etc", 2,
-					hfs_mkdir("sensors", 2,
+					hfs_mkdir("sensors", 3,
 						hfs_map_or_empty("config", sns_cfg),
+						hfs_mkdir("registry", 1,
+							hfs_map_or_empty("config", sns_cfg)
+						),
 						hfs_map("sns_reg_config", sns_reg_config)
 					),
 					hfs_map("acdbdata", acdbdata)
 				)
 			);
 
-	return hfs_mkdir("/", 6,
+	return hfs_mkdir("/", 7,
 			hfs_mkdir("mnt", 1,
-				hfs_mkdir("vendor", 1,
-					persist_dir
+				hfs_mkdir("vendor", 2,
+					persist_dir,
+					sns_dir
 				)
 			),
 			persist_dir,
+			sns_dir,
 			hfs_mkdir("sys", 1,
 				hfs_mkdir("devices", 1,
 					hfs_map_or_empty("soc0", socinfo)
