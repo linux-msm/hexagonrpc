@@ -93,7 +93,7 @@ static int mapped_openat(struct hexagonfs_fd *dir,
 	if (ctx == NULL)
 		return -ENOMEM;
 
-	fd = malloc(sizeof(struct hexagonfs_fd));
+	fd = calloc(1, sizeof(struct hexagonfs_fd));
 	if (fd == NULL) {
 		ret = -ENOMEM;
 		goto err;

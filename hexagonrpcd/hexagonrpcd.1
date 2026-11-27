@@ -25,6 +25,11 @@ Run client program with shared file descriptor
 \fB\-R \fIDIR\fP
 Root directory of served files (default: /usr/share/qcom/)
 .TP
+\fB\-O \fIDIR\fP
+Writable overlay directory for files the DSP opens for writing
+(default: writes are accepted but discarded)\&. The directory must exist
+and be writable by the user hexagonrpcd runs as\&.
+.TP
 \fB\-s\fP
 Attach to sensorspd
 .TP
@@ -54,6 +59,15 @@ socinfo                 /sys/devices/soc0
 
 These files and directories should be populated with files from your device's
 Android firmware.
+
+The tree below \fB-R\fP is never modified\&. If the DSP opens a file for
+writing (the sensors PD does this for its registry), hexagonrpcd copies the
+file into the \fB-O\fP directory, keeping the path relative to the root, and
+serves the write there instead\&. Files that exist in the overlay are then
+also served for reading, so the DSP sees what it wrote; files that only exist
+below \fB-R\fP are still read from there\&. A file that exists only below
+\fB-R\fP cannot be removed or renamed\&. Without \fB-O\fP writes are
+reported as successful but not persisted\&.
 
 If you can pass the -R option, the convention is to pass -R
 /usr/share/qcom/SOC/VENDOR/DEVICE, where SOC is the SoC name in lowercase,

@@ -24,6 +24,7 @@
 #include <libhexagonrpc/hexagonrpc.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 #include "interface/adsp_listener.h"
@@ -425,7 +426,8 @@ static int return_for_next_invoke(int fd,
 				  struct fastrpc_io_buffer **decoded)
 {
 	struct fastrpc_decoder_context *ctx;
-	char inbufs[256];
+#define HRPC_INBUFS_MAX (512 * 1024)
+	char *inbufs = NULL;
 	char *outbufs = NULL;
 	uint32_t inbufs_len;
 	uint32_t outbufs_len;
@@ -443,11 +445,18 @@ static int return_for_next_invoke(int fd,
 		outbufs_encode(REMOTE_SCALARS_OUTBUFS(*sc), returned, outbufs);
 	}
 
+	inbufs = malloc(HRPC_INBUFS_MAX);
+	if (inbufs == NULL) {
+		perror("Could not allocate encoded input buffer");
+		ret = -1;
+		goto err_free_outbufs;
+	}
+
 	ret = adsp_listener_next2(fd,
 				  *rctx, result,
 				  outbufs_len, outbufs,
 				  rctx, handle, sc,
-				  &inbufs_len, 256, inbufs);
+				  &inbufs_len, HRPC_INBUFS_MAX, inbufs);
 	if (ret) {
 		if (ret == -1)
 			perror("Could not fetch next FastRPC message");
@@ -457,8 +466,9 @@ static int return_for_next_invoke(int fd,
 		goto err_free_outbufs;
 	}
 
-	if (inbufs_len > 256) {
-		fprintf(stderr, "Large (>256B) input buffers aren't implemented\n");
+	if (inbufs_len > HRPC_INBUFS_MAX) {
+		fprintf(stderr, "Input buffers larger than %d are not supported\n",
+				HRPC_INBUFS_MAX);
 		ret = -1;
 		goto err_free_outbufs;
 	}
@@ -486,6 +496,7 @@ static int return_for_next_invoke(int fd,
 
 err_free_outbufs:
 	free(outbufs);
+	free(inbufs);
 	return ret;
 }
 
@@ -542,9 +553,30 @@ static int invoke_requested_procedure(size_t n_ifaces,
 	ret = count_sizes4(impl->def, REMOTE_SCALARS_INBUFS(sc),
 			   REMOTE_SCALARS_OUTBUFS(sc), decoded);
 	if (ret) {
-		fprintf(stderr, "Method invoked with less arguments than expected\n");
+		/*
+		 * The signature we have does not match what the DSP sent.  Reply
+		 * with an error but keep serving: aborting here would tear down
+		 * the whole listener and leave the DSP half-attached.
+		 */
+		uint8_t n_out = REMOTE_SCALARS_OUTBUFS(sc);
+		uint8_t i;
+
+		fprintf(stderr, "Method %u invoked with %u/%u buffers, signature mismatch\n",
+				method, REMOTE_SCALARS_INBUFS(sc), n_out);
+
+		*returned = calloc(n_out, sizeof(struct fastrpc_io_buffer));
+		if (*returned == NULL) {
+			*result = AEE_ENOMEMORY;
+			return 1;
+		}
+
+		for (i = 0; i < n_out; i++) {
+			(*returned)[i].s = sizeof(uint32_t);
+			(*returned)[i].p = calloc(1, sizeof(uint32_t));
+		}
+
 		*result = AEE_EBADPARM;
-		return 1;
+		return 0;
 	}
 
 	*returned = alloc_outbufs4(impl->def, decoded,

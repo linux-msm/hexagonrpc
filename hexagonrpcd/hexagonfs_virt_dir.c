@@ -74,7 +74,7 @@ static int virt_dir_openat(struct hexagonfs_fd *dir,
 	if (ent == NULL)
 		return -ENOENT;
 
-	fd = malloc(sizeof(struct hexagonfs_fd));
+	fd = calloc(1, sizeof(struct hexagonfs_fd));
 	if (fd == NULL)
 		return -ENOMEM;
 

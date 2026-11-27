@@ -77,6 +77,7 @@ static void print_usage(const char *argv0)
 	       "\t-f DEVICE\tFastRPC device node to attach to\n"
 	       "\t-p PROGRAM\tRun client program with shared file descriptor\n"
 	       "\t-R DIR\t\tRoot directory of served files (default: /usr/share/qcom/)\n"
+	       "\t-O DIR\t\tWritable overlay directory for DSP file writes\n"
 	       "\t-s\t\tAttach to sensorspd\n"
 	       "\t-h\t\tPrint help and exit\n");
 }
@@ -350,6 +351,7 @@ int main(int argc, char* argv[])
 	const char *device_dir = "/usr/share/qcom/";
 	const char *dsp = "";
 	const char *create_shell = NULL;
+	const char *overlay_dir = NULL;
 	const char *guessed_device_dir;
 	const char **progs;
 	pid_t *pids;
@@ -373,7 +375,7 @@ int main(int argc, char* argv[])
 	if (guessed_device_dir != NULL)
 		device_dir = guessed_device_dir;
 
-	while ((opt = getopt(argc, argv, "c:d:f:p:R:sh")) != -1) {
+	while ((opt = getopt(argc, argv, "c:d:f:p:R:O:sh")) != -1) {
 		switch (opt) {
 			case 'c':
 				create_shell = optarg;
@@ -390,6 +392,9 @@ int main(int argc, char* argv[])
 				break;
 			case 'R':
 				device_dir = optarg;
+				break;
+			case 'O':
+				overlay_dir = optarg;
 				break;
 			case 's':
 				attach_sns = true;
@@ -415,6 +420,13 @@ int main(int argc, char* argv[])
 	if (fd < 0) {
 		fprintf(stderr, "Could not open FastRPC node (%s): %s\n", fastrpc_node, strerror(errno));
 		goto err_free_pids;
+	}
+
+	if (overlay_dir != NULL) {
+		ret = hexagonfs_set_overlay(overlay_dir);
+		if (ret)
+			fprintf(stderr, "Could not initialize write overlay %s: %s\n",
+					overlay_dir, strerror(-ret));
 	}
 
 	if (attach_sns)
