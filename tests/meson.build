@@ -26,6 +26,16 @@ test_hexagonfs = executable('test_hexagonfs',
   include_directories : include,
 )
 
+test_overlay = executable('test_overlay',
+  'test_overlay.c',
+  '../hexagonrpcd/hexagonfs.c',
+  '../hexagonrpcd/hexagonfs_mapped.c',
+  '../hexagonrpcd/hexagonfs_overlay.c',
+  '../hexagonrpcd/overlay.c',
+  c_args : cflags,
+  include_directories : include,
+)
+
 test_hexagonrpc = executable('test_hexagonrpc',
   'test_hexagonrpc.c',
   '../libhexagonrpc/hexagonrpc.c',
@@ -35,4 +45,5 @@ test_hexagonrpc = executable('test_hexagonrpc',
 
 test('iobuffer', test_iobuffer)
 test('hexagonfs', test_hexagonfs, args : [sample_file])
+test('overlay', test_overlay)
 test('hexagonrpc', test_hexagonrpc)
