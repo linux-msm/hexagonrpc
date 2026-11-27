@@ -40,8 +40,10 @@ struct hexagonfs_file_ops {
 		      struct hexagonfs_fd **out);
 	int (*readdir)(struct hexagonfs_fd *fd, size_t size, char *out);
 	ssize_t (*read)(struct hexagonfs_fd *fd, size_t size, void *ptr);
+	ssize_t (*write)(struct hexagonfs_fd *fd, size_t size, const void *ptr);
 	int (*stat)(struct hexagonfs_fd *fd, struct stat *stats);
 	int (*seek)(struct hexagonfs_fd *fd, off_t off, int whence);
+	int (*fsync)(struct hexagonfs_fd *fd);
 };
 
 struct hexagonfs_dirent {
@@ -58,6 +60,8 @@ struct hexagonfs_dirent {
 struct hexagonfs_fd {
 	bool is_assigned;
 	struct hexagonfs_fd *up;
+	/* Path of the file relative to the root of the served tree. */
+	char *vpath;
 	void *data;
 
 	struct hexagonfs_file_ops *ops;
@@ -69,13 +73,29 @@ extern struct hexagonfs_file_ops hexagonfs_mapped_sysfs_ops;
 extern struct hexagonfs_file_ops hexagonfs_plat_subtype_name_ops;
 extern struct hexagonfs_file_ops hexagonfs_virt_dir_ops;
 
+int hexagonfs_set_overlay(const char *dir);
+bool hexagonfs_overlay_enabled(void);
+
 int hexagonfs_open_root(struct hexagonfs_fd **fds, struct hexagonfs_dirent *root);
 int hexagonfs_openat(struct hexagonfs_fd **fds, int rootfd, int dirfd, const char *name);
+int hexagonfs_openat_write(struct hexagonfs_fd **fds, int rootfd, int dirfd,
+			   const char *name, int flags);
 int hexagonfs_close(struct hexagonfs_fd **fds, int fileno);
 
 int hexagonfs_fstat(struct hexagonfs_fd **fds, int fileno, struct stat *stats);
 int hexagonfs_lseek(struct hexagonfs_fd **fds, int fileno, off_t pos, int whence);
 int hexagonfs_readdir(struct hexagonfs_fd **fds, int fileno, size_t size, char *name);
 ssize_t hexagonfs_read(struct hexagonfs_fd **fds, int fileno, size_t size, void *ptr);
+ssize_t hexagonfs_write(struct hexagonfs_fd **fds, int fileno, size_t size,
+			const void *ptr);
+
+int hexagonfs_fsync(struct hexagonfs_fd **fds, int fileno);
+int hexagonfs_remove(struct hexagonfs_fd **fds, int rootfd, int dirfd,
+		     const char *name);
+int hexagonfs_rename(struct hexagonfs_fd **fds, int rootfd, int dirfd,
+		     const char *from, const char *to);
+
+int hexagonfs_overlay_open(const char *vpath, int flags,
+			   struct hexagonfs_fd **out);
 
 #endif

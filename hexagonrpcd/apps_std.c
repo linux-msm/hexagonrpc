@@ -20,6 +20,7 @@
  */
 
 #include <errno.h>
+#include <fcntl.h>
 #include <libhexagonrpc/error.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -120,6 +121,120 @@ static uint32_t apps_std_fread(void *data,
 	return 0;
 }
 
+static uint32_t apps_std_fwrite(void *data,
+				const struct fastrpc_io_buffer *inbufs,
+				struct fastrpc_io_buffer *outbufs)
+{
+	struct apps_std_ctx *ctx = data;
+	const struct {
+		uint32_t fd;
+		uint32_t buf_size;
+	} *first_in = inbufs[0].p;
+	struct {
+		uint32_t written;
+		uint32_t is_eof;
+	} *first_out = outbufs[0].p;
+	ssize_t ret;
+
+	ret = hexagonfs_write(ctx->fds, first_in->fd, first_in->buf_size,
+			      inbufs[1].p);
+	if (ret < 0) {
+		/*
+		 * Without a writable overlay there is nothing to write to; the
+		 * firmware is happy as long as the write is accepted.
+		 */
+		if (ret == -ENOSYS) {
+			first_out->written = first_in->buf_size;
+			first_out->is_eof = 0;
+
+			return 0;
+		}
+
+		fprintf(stderr, "Could not write file: %s\n", strerror(-ret));
+		return AEE_EFAILED;
+	}
+
+#ifdef HEXAGONRPC_VERBOSE
+	printf("write(%u, %u) -> %ld\n", first_in->fd, first_in->buf_size, ret);
+#endif
+
+	first_out->written = ret;
+	first_out->is_eof = 0;
+
+	return 0;
+}
+
+static uint32_t apps_std_fopen_fd(void *data,
+				  const struct fastrpc_io_buffer *inbufs,
+				  struct fastrpc_io_buffer *outbufs)
+{
+	struct apps_std_ctx *ctx = data;
+	uint32_t *out = outbufs[0].p;
+	int fd;
+
+	fd = hexagonfs_openat(ctx->fds, ctx->rootfd, ctx->rootfd, inbufs[0].p);
+	if (fd < 0) {
+		fprintf(stderr, "Could not open %s: %s\n",
+				(const char *) inbufs[0].p, strerror(errno));
+		return AEE_EFAILED;
+	}
+
+	out[0] = fd;
+	out[1] = 0;
+
+	return 0;
+}
+
+static uint32_t apps_std_fclose_fd(void *data,
+				   const struct fastrpc_io_buffer *inbufs,
+				   struct fastrpc_io_buffer *outbufs)
+{
+	struct apps_std_ctx *ctx = data;
+	const uint32_t *fd = inbufs[0].p;
+
+	return hexagonfs_close(ctx->fds, *fd) ? AEE_EFAILED : 0;
+}
+
+static uint32_t apps_std_fopen_with_env_fd(void *data,
+					   const struct fastrpc_io_buffer *inbufs,
+					   struct fastrpc_io_buffer *outbufs)
+{
+	struct apps_std_ctx *ctx = data;
+	uint32_t *out = outbufs[0].p;
+	char rw_mode;
+	int dirfd, fd;
+
+	rw_mode = ((const char *) inbufs[3].p)[0];
+	if (rw_mode == 'w' || rw_mode == 'a')
+		fprintf(stderr, "Opening %s for writing (writes are discarded)\n",
+				(const char *) inbufs[2].p);
+
+	if (!strcmp(inbufs[0].p, "ADSP_LIBRARY_PATH")) {
+		dirfd = ctx->adsp_library_dirfd;
+	} else if (!strcmp(inbufs[0].p, "ADSP_AVS_CFG_PATH")) {
+		dirfd = ctx->adsp_avs_cfg_dirfd;
+	} else {
+		fprintf(stderr, "Unknown search directory %s\n",
+				(const char *) inbufs[0].p);
+		return AEE_EBADPARM;
+	}
+
+	if (dirfd < 0)
+		return AEE_EFAILED;
+
+	fd = hexagonfs_openat(ctx->fds, ctx->rootfd, dirfd, inbufs[2].p);
+	if (fd < 0) {
+		fprintf(stderr, "Could not open %s: %s\n",
+				(const char *) inbufs[2].p, strerror(errno));
+		return AEE_EFAILED;
+	}
+
+	out[0] = fd;
+	out[1] = 0;
+
+	return 0;
+}
+
 static uint32_t apps_std_fseek(void *data,
 			       const struct fastrpc_io_buffer *inbufs,
 			       struct fastrpc_io_buffer *outbufs)
@@ -167,9 +282,28 @@ static uint32_t apps_std_fopen_with_env(void *data,
 
 	rw_mode = ((const char *) inbufs[4].p)[0];
 	if (rw_mode == 'w' || rw_mode == 'a') {
-		fprintf(stderr, "Tried to open %s for writing\n",
-				(const char *) inbufs[3].p);
-		return AEE_EUNSUPPORTED;
+		if (!hexagonfs_overlay_enabled())
+			return AEE_EUNSUPPORTED;
+
+		/*
+		 * 'w' does not truncate the copied-up file: this firmware
+		 * reopens the same file for writing several times while it
+		 * builds its registry, so O_TRUNC loses everything written
+		 * before (measured: the registry shrank and the accelerometer
+		 * and proximity sensors disappeared from the sensor list).
+		 */
+		fd = hexagonfs_openat_write(ctx->fds, ctx->rootfd, ctx->rootfd,
+					    inbufs[3].p,
+					    rw_mode == 'a' ? O_APPEND : 0);
+		if (fd < 0) {
+			fprintf(stderr, "Could not open %s for writing: %s\n",
+					(const char *) inbufs[3].p,
+					strerror(-fd));
+			return AEE_EFAILED;
+		}
+
+		*out = (uint32_t) fd;
+		return 0;
 	}
 
 	if (!strcmp(inbufs[1].p, "ADSP_LIBRARY_PATH")) {
@@ -405,70 +539,63 @@ void fastrpc_apps_std_deinit(struct fastrpc_interface *iface)
 	free(iface);
 }
 
+static uint32_t apps_std_fsync(void *data,
+			       const struct fastrpc_io_buffer *inbufs,
+			       struct fastrpc_io_buffer *outbufs)
+{
+	struct apps_std_ctx *ctx = data;
+	const uint32_t *fd = inbufs[0].p;
+
+	return hexagonfs_fsync(ctx->fds, *fd) ? AEE_EFAILED : 0;
+}
+
+static uint32_t apps_std_fremove(void *data,
+				 const struct fastrpc_io_buffer *inbufs,
+				 struct fastrpc_io_buffer *outbufs)
+{
+	struct apps_std_ctx *ctx = data;
+	const char *path = inbufs[0].p;
+
+	if (hexagonfs_remove(ctx->fds, ctx->rootfd, ctx->rootfd, path))
+		return AEE_EFAILED;
+
+	return 0;
+}
+
+static uint32_t apps_std_frename(void *data,
+				 const struct fastrpc_io_buffer *inbufs,
+				 struct fastrpc_io_buffer *outbufs)
+{
+	struct apps_std_ctx *ctx = data;
+	const char *from = inbufs[0].p;
+	const char *to = inbufs[1].p;
+
+	return hexagonfs_rename(ctx->fds, ctx->rootfd, ctx->rootfd, from, to)
+		? AEE_EFAILED : 0;
+}
+
 static const struct fastrpc_function_impl apps_std_procs[] = {
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{
-		.def = &apps_std_fflush_def,
-		.impl = apps_std_fflush,
-	},
-	{
-		.def = &apps_std_fclose_def,
-		.impl = apps_std_fclose,
-	},
-	{
-		.def = &apps_std_fread_def,
-		.impl = apps_std_fread,
-	},
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{
-		.def = &apps_std_fseek_def,
-		.impl = apps_std_fseek,
-	},
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{
-		.def = &apps_std_fopen_with_env_def,
-		.impl = apps_std_fopen_with_env,
-	},
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{
-		.def = &apps_std_opendir_def,
-		.impl = apps_std_opendir,
-	},
-	{
-		.def = &apps_std_closedir_def,
-		.impl = apps_std_closedir,
-	},
-	{
-		.def = &apps_std_readdir_def,
-		.impl = apps_std_readdir,
-	},
-	{ .def = NULL, .impl = NULL, },
-	{ .def = NULL, .impl = NULL, },
-	{
-		.def = &apps_std_stat_def,
-		.impl = apps_std_stat,
-	},
+	[2] = { .def = &apps_std_fflush_def, .impl = apps_std_fflush },
+	[3] = { .def = &apps_std_fclose_def, .impl = apps_std_fclose },
+	[4] = { .def = &apps_std_fread_def, .impl = apps_std_fread },
+	[5] = { .def = &apps_std_fwrite_def, .impl = apps_std_fwrite },
+	[9] = { .def = &apps_std_fseek_def, .impl = apps_std_fseek },
+	[19] = { .def = &apps_std_fopen_with_env_def, .impl = apps_std_fopen_with_env },
+	[23] = { .def = &apps_std_fsync_def, .impl = apps_std_fsync },
+	[24] = { .def = &apps_std_fremove_def, .impl = apps_std_fremove },
+	[26] = { .def = &apps_std_opendir_def, .impl = apps_std_opendir },
+	[27] = { .def = &apps_std_closedir_def, .impl = apps_std_closedir },
+	[28] = { .def = &apps_std_readdir_def, .impl = apps_std_readdir },
+	[31] = { .def = &apps_std_stat_def, .impl = apps_std_stat },
+	[33] = { .def = &apps_std_frename_def, .impl = apps_std_frename },
+	[34] = { .def = &apps_std_fopen_fd_def, .impl = apps_std_fopen_fd },
+	[35] = { .def = &apps_std_fclose_fd_def, .impl = apps_std_fclose_fd },
+	[36] = { .def = &apps_std_fopen_with_env_fd_def, .impl = apps_std_fopen_with_env_fd },
 };
+
 
 const struct fastrpc_interface apps_std_interface = {
 	.name = "apps_std",
-	.n_procs = 32,
+	.n_procs = 37, /* = table length; indexes follow the AOSP apps_std IDL */
 	.procs = apps_std_procs,
 };

@@ -20,6 +20,8 @@ test_hexagonfs = executable('test_hexagonfs',
   'test_hexagonfs.c',
   '../hexagonrpcd/hexagonfs.c',
   '../hexagonrpcd/hexagonfs_mapped.c',
+  '../hexagonrpcd/hexagonfs_overlay.c',
+  '../hexagonrpcd/overlay.c',
   c_args : cflags,
   include_directories : include,
 )
