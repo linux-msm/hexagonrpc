@@ -112,6 +112,7 @@ static struct hexagonfs_dirent *hfs_map_or_empty(const char *name, const char *p
 struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
 {
 	char *acdbdata, *dsp_libs, *sns_cfg, *sns_reg, *sns_reg_config, *socinfo;
+	char *sns_reg_version, *sns_reg_file_list;
 	size_t n_prefix;
 	struct hexagonfs_dirent *persist_dir, *vendor_dir;
 
@@ -121,6 +122,8 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
 	sns_cfg = malloc(n_prefix + strlen(SENSORS_CONFIG) + 1);
 	sns_reg = malloc(n_prefix + strlen(SENSORS_REGISTRY) + 1);
 	sns_reg_config = malloc(n_prefix + strlen(SNS_REG_CONFIG) + 1);
+	sns_reg_version = malloc(n_prefix + strlen(SENSORS_REGISTRY) + strlen("sns_reg_version") + 1);
+	sns_reg_file_list = malloc(n_prefix + strlen(SENSORS_REGISTRY) + strlen("parsed_file_list.csv") + 1);
 	socinfo = malloc(n_prefix + strlen(SYSFS_SOCINFO) + 1);
 
 	dsp_libs = malloc(n_prefix + strlen(DSP_LIBS) + strlen(dsp) + 1);
@@ -145,6 +148,18 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
 		strcat(sns_reg_config, SNS_REG_CONFIG);
 	}
 
+	if (sns_reg_version != NULL) {
+		strcpy(sns_reg_version, prefix);
+		strcat(sns_reg_version, SENSORS_REGISTRY);
+		strcat(sns_reg_version, "sns_reg_version");
+	}
+
+	if (sns_reg_file_list != NULL) {
+		strcpy(sns_reg_file_list, prefix);
+		strcat(sns_reg_file_list, SENSORS_REGISTRY);
+		strcat(sns_reg_file_list, "parsed_file_list.csv");
+	}
+
 	if (socinfo != NULL) {
 		strcpy(socinfo, prefix);
 		strcat(socinfo, SYSFS_SOCINFO);
@@ -163,7 +178,9 @@ struct hexagonfs_dirent *construct_root_dir(const char *prefix, const char *dsp)
 	persist_dir = hfs_mkdir("persist", 1,
 				hfs_mkdir("sensors", 1,
 					hfs_mkdir("registry", 1,
-						hfs_map("registry", sns_reg)
+						hfs_map("registry", sns_reg),
+						hfs_map_or_empty("sns_reg_version", sns_reg_version),
+						hfs_map_or_empty("parsed_file_list.csv", sns_reg_file_list)
 					)
 				)
 		      );
